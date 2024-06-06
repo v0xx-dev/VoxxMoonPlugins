@@ -2739,11 +2739,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\LethalCompanyTemplate\\ArcadiaMoonPlugin.csproj",
+      "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
       "projectName": "ArcadiaMoonPlugin",
-      "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\LethalCompanyTemplate\\ArcadiaMoonPlugin.csproj",
+      "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
       "packagesPath": "C:\\Users\\ispar\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\LethalCompanyTemplate\\obj\\",
+      "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\ispar\\AppData\\Roaming\\NuGet\\NuGet.Config",
