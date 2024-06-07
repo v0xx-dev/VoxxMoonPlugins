@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
+using UnityEngine.AI;
+using UnityEngine.UIElements;
 
 namespace ArcadiaMoonPlugin
 {
@@ -21,6 +23,7 @@ namespace ArcadiaMoonPlugin
         public GameObject nestPrefab;
         public float timer = 0.5f; // Normalized time of day to start spawning enemies
         private List<GameObject> spawnedNests = new List<GameObject>();
+        private System.Random random = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
 
         private void Start()
         {
@@ -30,7 +33,11 @@ namespace ArcadiaMoonPlugin
             {
                 if (nestPrefab != null)
                 {
-                    GameObject nest = Instantiate(nestPrefab, child.position, Quaternion.identity);
+                    Vector3 position = RoundManager.Instance.GetRandomNavMeshPositionInBoxPredictable(child.position, 10f, default(NavMeshHit), random,
+                                                                                                      RoundManager.Instance.GetLayermaskForEnemySizeLimit(enemyType));
+                    position = RoundManager.Instance.PositionEdgeCheck(position, enemyType.nestSpawnPrefabWidth);
+                    GameObject nest = Instantiate(nestPrefab, position, Quaternion.identity);
+                    nest.transform.Rotate(Vector3.up, random.Next(-180, 180), Space.World);
                     spawnedNests.Add(nest);
                     if (nest.GetComponentInChildren<NetworkObject>())
                     {
@@ -39,7 +46,7 @@ namespace ArcadiaMoonPlugin
                     }
                     else
                     {
-                        Debug.LogError("Nest prefab does not have a NetworkObject component.");
+                        Debug.LogError("Nest prefab does not have a NetworkObject component. Desync possible!");
                     }
                 }
             }
@@ -49,28 +56,26 @@ namespace ArcadiaMoonPlugin
         {
             if (TimeOfDay.Instance.normalizedTimeOfDay > timer)
             {
-                // Destroy previously spawned nests
+                // Destroy previously spawned nests and spawn enemies in their place
                 foreach (GameObject nest in spawnedNests)
                 {
+                    Vector3 nest_position = nest.transform.position;
+                    float nest_angle = nest.transform.rotation.eulerAngles.y;
                     Destroy(nest);
-                }
-                spawnedNests.Clear();
-                Debug.Log("Destroyed all spawned enemy nest prefabs!");
-
-                // Spawn enemies
-                foreach (Transform child in transform)
-                {
-                    SpawnEnemyAtPosition(child.position);
+                    SpawnEnemyAtPosition(nest_position, nest_angle);
                     Debug.Log("Spawned enemy in place of a nest prefab!");
                 }
+                spawnedNests.Clear();
+                Debug.Log($"Destroyed all spawned enemy nest prefabs of {enemyType.enemyName}!");
+
                 enabled = false;
             }
         }
 
-        private void SpawnEnemyAtPosition(Vector3 position)
+        private void SpawnEnemyAtPosition(Vector3 position, float yRot = 0f)
         {
             Debug.Log($"Current enemy type for force spawn is {enemyType.enemyName}");
-            RoundManager.Instance.SpawnEnemyGameObject(position, 0f, -1, enemyType);
+            RoundManager.Instance.SpawnEnemyGameObject(position, yRot, -1, enemyType);
         }
     }
 }
