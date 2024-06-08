@@ -5,6 +5,7 @@ using Unity.Netcode;
 using UnityEngine.AI;
 using HarmonyLib;
 using ArcadiaMoonPlugin.Patches;
+using System.Linq;
 
 namespace ArcadiaMoonPlugin
 {
@@ -131,14 +132,38 @@ namespace ArcadiaMoonPlugin
 
     public class EnemySpawner : MonoBehaviour
     {
-        public EnemyType enemyType;
-        public GameObject nestPrefab;
+        public string enemyName = "RadMech";
+
+        private EnemyType enemyType;
+        private GameObject nestPrefab;
+
         public float timer = 0.5f; // Normalized time of day to start spawning enemies
         private List<GameObject> spawnedNests = new List<GameObject>();
         private System.Random random = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
 
+        private void LoadResources(string enemyName)
+        {
+            // Find all EnemyType assets
+            var allEnemyTypes = Resources.FindObjectsOfTypeAll<EnemyType>().Distinct();
+
+            // Find the specific EnemyType by name
+            enemyType = allEnemyTypes.FirstOrDefault(e => e.enemyName == enemyName);
+
+            if (enemyType != null)
+            {
+                nestPrefab = enemyType.nestSpawnPrefab;
+                Debug.Log("EnemyType and prefab loaded successfully!");
+            }
+            else
+            {
+                Debug.LogError("Failed to load EnemyType!");
+
+            }
+        }
+
         private void Start()
         {
+            LoadResources(enemyName);
             // Spawn nests at the positions of child objects
             Debug.Log("Started nest prefab spawning routine!");
             foreach (Transform child in transform)
@@ -169,17 +194,27 @@ namespace ArcadiaMoonPlugin
             if (TimeOfDay.Instance.normalizedTimeOfDay > timer)
             {
                 // Destroy previously spawned nests and spawn enemies in their place
-                foreach (GameObject nest in spawnedNests)
+                if (nestPrefab != null)
                 {
-                    Vector3 nest_position = nest.transform.position;
-                    float nest_angle = nest.transform.rotation.eulerAngles.y;
-                    Destroy(nest);
-                    SpawnEnemyAtPosition(nest_position, nest_angle);
-                    Debug.Log("Spawned enemy in place of a nest prefab!");
+                    foreach (GameObject nest in spawnedNests)
+                    {
+                        Vector3 nest_position = nest.transform.position;
+                        float nest_angle = nest.transform.rotation.eulerAngles.y;
+                        Destroy(nest);
+                        SpawnEnemyAtPosition(nest_position, nest_angle);
+                        Debug.Log("Spawned enemy in place of a nest prefab!");
+                    }
+                    spawnedNests.Clear();
+                    Debug.Log($"Destroyed all spawned enemy nest prefabs of {enemyType.enemyName}!");
                 }
-                spawnedNests.Clear();
-                Debug.Log($"Destroyed all spawned enemy nest prefabs of {enemyType.enemyName}!");
-
+                else
+                {
+                    foreach (Transform child in transform)
+                    {
+                        SpawnEnemyAtPosition(child.position, 0f);
+                        Debug.Log("Force spawned an enemy!");
+                    }
+                }
                 enabled = false;
             }
         }
@@ -190,9 +225,4 @@ namespace ArcadiaMoonPlugin
             RoundManager.Instance.SpawnEnemyGameObject(position, yRot, -1, enemyType);
         }
     }
-}
-
-namespace ArcadiaMoonPlugin.Patches
-{
-
 }
