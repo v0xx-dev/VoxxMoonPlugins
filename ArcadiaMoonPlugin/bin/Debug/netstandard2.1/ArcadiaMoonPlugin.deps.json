@@ -15,6 +15,7 @@
           "BepInEx.PluginInfoProps": "1.1.0",
           "UnityEngine.Modules": "2022.3.9",
           "Unity.Netcode.Runtime": "0.0.0.0",
+          "Unity.RenderPipelines.Core.Runtime": "0.0.0.0",
           "UnityEditor": "0.0.0.0",
           "Assembly-CSharp": "0.0.0.0"
         },
@@ -392,6 +393,14 @@
           }
         }
       },
+      "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
+        "runtime": {
+          "Unity.RenderPipelines.Core.Runtime.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "UnityEditor/0.0.0.0": {
         "runtime": {
           "UnityEditor.dll": {
@@ -544,11 +553,11 @@
           }
         }
       },
-      "Unity.Animation.Rigging/0.0.0.0": {
+      "Unity.InputSystem/1.7.0.0": {
         "runtime": {
-          "Unity.Animation.Rigging.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
+          "Unity.InputSystem.dll": {
+            "assemblyVersion": "1.7.0.0",
+            "fileVersion": "1.7.0.0"
           }
         }
       },
@@ -557,6 +566,14 @@
           "UnityEngine.UI.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Unity.Animation.Rigging/0.0.0.0": {
+        "runtime": {
+          "Unity.Animation.Rigging.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -576,25 +593,9 @@
           }
         }
       },
-      "Unity.InputSystem/1.7.0.0": {
-        "runtime": {
-          "Unity.InputSystem.dll": {
-            "assemblyVersion": "1.7.0.0",
-            "fileVersion": "1.7.0.0"
-          }
-        }
-      },
       "Unity.RenderPipelines.HighDefinition.Runtime/0.0.0.0": {
         "runtime": {
           "Unity.RenderPipelines.HighDefinition.Runtime.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
-        "runtime": {
-          "Unity.RenderPipelines.Core.Runtime.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -1046,6 +1047,11 @@
       "serviceable": false,
       "sha512": ""
     },
+    "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "UnityEditor/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1141,12 +1147,17 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.Animation.Rigging/0.0.0.0": {
+    "Unity.InputSystem/1.7.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
     "UnityEngine.UI/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.Animation.Rigging/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1161,17 +1172,7 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Unity.InputSystem/1.7.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
     "Unity.RenderPipelines.HighDefinition.Runtime/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 using UnityEngine.AI;
+using UnityEngine.Rendering;
 using HarmonyLib;
 using ArcadiaMoonPlugin.Patches;
 using System.Linq;
+using System.Collections;
+using static UnityEditor.VersionControl.Message;
 
 namespace ArcadiaMoonPlugin
 {
@@ -55,15 +58,30 @@ namespace ArcadiaMoonPlugin
     public class HeatwaveZoneInteract : MonoBehaviour
     {
         public float timeInZoneMax = 10f; // Maximum time before maximum effects are applied
+        public float resetDuration = 5f; // Duration over which to gradually reduce the heat severity
+        public Volume exhaustionFilter; // Filter for visual effects
+
+        private bool playerInZone = false;
         private float timeInZone = 0f;
+        private Coroutine resetCoroutine;
 
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player"))
             {
+                playerInZone = true;
                 timeInZone = 0f;
-                Debug.Log("The player has entered a heatwave zone!");
-                // Start tracking time in zone
+                if (resetCoroutine != null)
+                {
+                    StopCoroutine(resetCoroutine); // Stop any ongoing reset coroutine
+                }
+
+                // Initialize the severity based on the current heat severity if not zero
+                float severity = PlayerHeatEffects.GetHeatSeverity();
+                if (severity > 0)
+                {
+                    timeInZone = severity * timeInZoneMax;
+                }
             }
         }
 
@@ -71,8 +89,11 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
+                // Increment the time counter while the player is in the zone
                 timeInZone += Time.deltaTime;
-                AdjustEffects(other.gameObject);
+
+                // Adjust the severity of effects based on the time spent in the zone
+                IncreaseEffects();
             }
         }
 
@@ -80,48 +101,57 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
-                Debug.Log($"The player has left a heatwave zone after {timeInZone} seconds!");
-                timeInZone = 0f;
-                ResetEffects(other.gameObject);
+                playerInZone = false;
+                Debug.Log($"Player exited the trigger zone after {timeInZone} seconds!");
+
+                // Start the coroutine to reset the effects gradually
+                if (resetCoroutine != null)
+                {
+                    StopCoroutine(resetCoroutine); // Stop any ongoing reset coroutine
+                }
+                resetCoroutine = StartCoroutine(GraduallyResetEffects());
             }
         }
 
-        private void AdjustEffects(GameObject player)
+        private void IncreaseEffects()
         {
+            // Calculate the severity based on the time spent in the zone
             float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
-            // Apply severity effects (for example, changing color intensity)
-            //Renderer playerRenderer = player.GetComponent<Renderer>();
-            //if (playerRenderer != null)
-            //{
-            //    playerRenderer.material.color = new Color(severity, 0, 0);
-            //}
 
-            // Set the static field to be used in the Harmony patch
-            PlayerHeatEffects.SetHeatSeverity(severity);
+            // Update the heat severity and the Volume weight
+            PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
         }
 
-        private void ResetEffects(GameObject player)
+        private IEnumerator GraduallyResetEffects()
         {
-            // Reset the player's color when exiting the zone
-            //Renderer playerRenderer = player.GetComponent<Renderer>();
-            //if (playerRenderer != null)
-            //{
-            //    playerRenderer.material.color = Color.white;
-            //}
+            float startSeverity = PlayerHeatEffects.GetHeatSeverity();
+            float elapsedTime = 0f;
 
-            // Reset the static field
-            PlayerHeatEffects.SetHeatSeverity(0f);
+            while (elapsedTime < resetDuration)
+            {
+                elapsedTime += Time.deltaTime;
+                float newSeverity = Mathf.Lerp(startSeverity, 0f, elapsedTime / resetDuration);
+                PlayerHeatEffects.SetHeatSeverity(newSeverity, exhaustionFilter);
+
+                yield return null;
+            }
+
+            PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
         }
     }
 
-
+    // Class for managing heat severity
     public static class PlayerHeatEffects
     {
         private static float heatSeverity = 0f;
 
-        public static void SetHeatSeverity(float severity)
+        public static void SetHeatSeverity(float severity, Volume volume)
         {
             heatSeverity = severity;
+            if (volume != null)
+            {
+                volume.weight = Mathf.Clamp(severity, 0, 0.5f); // Adjust intensity of the visual effect
+            }
         }
 
         public static float GetHeatSeverity()
