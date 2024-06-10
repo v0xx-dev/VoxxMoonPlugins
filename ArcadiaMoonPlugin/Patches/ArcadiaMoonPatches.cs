@@ -18,14 +18,14 @@ namespace ArcadiaMoonPlugin.Patches
                 float maxSprintMeter = Mathf.Lerp(1f, 0.6f, severity);
                 ___sprintMeter = Mathf.Clamp(___sprintMeter, 0, maxSprintMeter);
 
-                // Gradually decrease the maximum sprintTime value from 5 to 2.5
-                float maxSprintTime = Mathf.Lerp(5f, 2.5f, severity);
+                // Gradually decrease the maximum sprintTime value from 5 to 2
+                float maxSprintTime = Mathf.Lerp(5f, 1f, severity);
                 ___sprintTime = Mathf.Clamp(___sprintTime, 0, maxSprintTime);
 
-                if (severity == 1)
-                {
-                    Debug.Log("Player has reached maximum heat exhaustion!");
-                }
+                //if (severity == 1)
+                //{
+                //    Debug.Log("Player has reached maximum heat exhaustion!");
+                //}
             }
         }
     }

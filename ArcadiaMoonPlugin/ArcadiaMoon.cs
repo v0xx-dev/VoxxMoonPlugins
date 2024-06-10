@@ -8,7 +8,6 @@ using HarmonyLib;
 using ArcadiaMoonPlugin.Patches;
 using System.Linq;
 using System.Collections;
-using static UnityEditor.VersionControl.Message;
 
 namespace ArcadiaMoonPlugin
 {
@@ -39,7 +38,7 @@ namespace ArcadiaMoonPlugin
         private void Start()
         {
             timeSyncAnimator = GetComponent<Animator>();
-            if (timeSyncAnimator != null)
+            if (timeSyncAnimator == null)
             {
                 Debug.LogError("There is no Animator component attached to this object!");
             }
@@ -61,26 +60,28 @@ namespace ArcadiaMoonPlugin
         public float resetDuration = 5f; // Duration over which to gradually reduce the heat severity
         public Volume exhaustionFilter; // Filter for visual effects
 
-        private bool playerInZone = false;
         private float timeInZone = 0f;
+        private int colliderCount = 0; // Counter to track how many colliders are currently being triggered
         private Coroutine resetCoroutine;
 
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player"))
             {
-                playerInZone = true;
-                timeInZone = 0f;
-                if (resetCoroutine != null)
-                {
-                    StopCoroutine(resetCoroutine); // Stop any ongoing reset coroutine
-                }
+                // Increase the collider count
+                colliderCount++;
 
-                // Initialize the severity based on the current heat severity if not zero
-                float severity = PlayerHeatEffects.GetHeatSeverity();
-                if (severity > 0)
+                // If this is the first collider being triggered, stop any ongoing reset coroutine
+                if (colliderCount == 1)
                 {
-                    timeInZone = severity * timeInZoneMax;
+                    if (resetCoroutine != null)
+                    {
+                        StopCoroutine(resetCoroutine);
+                        resetCoroutine = null;
+                    }
+
+                    // Reset time in zone
+                    timeInZone = 0f;
                 }
             }
         }
@@ -101,15 +102,14 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
-                playerInZone = false;
-                Debug.Log($"Player exited the trigger zone after {timeInZone} seconds!");
+                // Decrease the collider count
+                colliderCount--;
 
-                // Start the coroutine to reset the effects gradually
-                if (resetCoroutine != null)
+                // If there are no more colliders being triggered, start the reset coroutine
+                if (colliderCount == 0)
                 {
-                    StopCoroutine(resetCoroutine); // Stop any ongoing reset coroutine
+                    resetCoroutine = StartCoroutine(GraduallyResetEffects());
                 }
-                resetCoroutine = StartCoroutine(GraduallyResetEffects());
             }
         }
 
@@ -150,7 +150,7 @@ namespace ArcadiaMoonPlugin
             heatSeverity = severity;
             if (volume != null)
             {
-                volume.weight = Mathf.Clamp(severity, 0, 0.5f); // Adjust intensity of the visual effect
+                volume.weight = Mathf.Clamp01(severity); // Adjust intensity of the visual effect
             }
         }
 
@@ -159,6 +159,7 @@ namespace ArcadiaMoonPlugin
             return heatSeverity;
         }
     }
+
 
     public class EnemySpawner : MonoBehaviour
     {
@@ -195,11 +196,11 @@ namespace ArcadiaMoonPlugin
         {
             LoadResources(enemyName);
             // Spawn nests at the positions of child objects
-            Debug.Log("Started nest prefab spawning routine!");
             foreach (Transform child in transform)
             {
                 if (nestPrefab != null)
                 {
+                    Debug.Log("Started nest prefab spawning routine!");
                     Vector3 position = RoundManager.Instance.GetRandomNavMeshPositionInBoxPredictable(child.position, 10f, default(NavMeshHit), random,
                                                                                                       RoundManager.Instance.GetLayermaskForEnemySizeLimit(enemyType));
                     position = RoundManager.Instance.PositionEdgeCheck(position, enemyType.nestSpawnPrefabWidth);
