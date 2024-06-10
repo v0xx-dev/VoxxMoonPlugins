@@ -74,6 +74,7 @@ namespace ArcadiaMoonPlugin
                 // If this is the first collider being triggered, stop any ongoing reset coroutine
                 if (colliderCount == 1)
                 {
+                    Debug.Log("Player has entered a heatwave zone!");
                     if (resetCoroutine != null)
                     {
                         StopCoroutine(resetCoroutine);
@@ -81,7 +82,7 @@ namespace ArcadiaMoonPlugin
                     }
 
                     // Reset time in zone
-                    timeInZone = 0f;
+                    timeInZone = PlayerHeatEffects.GetHeatSeverity() * timeInZoneMax; //recalculate timeInZone based on severity
                 }
             }
         }
@@ -108,6 +109,7 @@ namespace ArcadiaMoonPlugin
                 // If there are no more colliders being triggered, start the reset coroutine
                 if (colliderCount == 0)
                 {
+                    Debug.Log("Player has left a heatwave zone!");
                     resetCoroutine = StartCoroutine(GraduallyResetEffects());
                 }
             }
