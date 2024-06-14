@@ -10,6 +10,7 @@ using GameNetcodeStuff;
 using System.Linq;
 using System.Collections;
 using UnityEditor.VersionControl;
+using BepInEx.Configuration;
 
 namespace ArcadiaMoonPlugin
 {
@@ -19,11 +20,21 @@ namespace ArcadiaMoonPlugin
         private Harmony harmony;
         public static ArcadiaMoon instance;
 
+        public static ConfigEntry<bool> ForceSpawnFlowerman { get; private set; }
+        public static ConfigEntry<bool> ForceSpawnBaboon { get; private set; }
+        public static ConfigEntry<bool> ForceSpawnRadMech { get; private set; }
+
         private void Awake()
         {
-            ArcadiaMoon.instance = this;
+            instance = this;
+
             // Plugin startup logic
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
+
+            // Configuration entries
+            ForceSpawnFlowerman = Config.Bind("Spawning", "ForceSpawnFlowerman", true, "Enable forced spawning for Flowerman");
+            ForceSpawnBaboon = Config.Bind("Spawning", "ForceSpawnBaboon", true, "Enable forced spawning for Baboon hawk");
+            ForceSpawnRadMech = Config.Bind("Spawning", "ForceSpawnRadMech", true, "Enable forced spawning for Old Bird");
 
             //Apply Harmony patch
             this.harmony = new Harmony(PluginInfo.PLUGIN_GUID);
@@ -131,9 +142,8 @@ namespace ArcadiaMoonPlugin
         {
             // Calculate the severity based on the time spent in the zone
             float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
-
             // Check if the player's health is low and we are not already resetting the effect
-            if (playerController.health <= 5 || playerController.teleportingThisFrame)
+            if (playerController.health <= 5 || playerController.beamOutParticle.isPlaying)
             {
                 if (resetCoroutine == null)
                 {
@@ -228,6 +238,14 @@ namespace ArcadiaMoonPlugin
         private void Start()
         {
             LoadResources(enemyName);
+
+            // Check if forced spawning is enabled for the current enemy type
+            if (!IsSpawningEnabled())
+            {
+                Debug.Log($"Forced spawning for {enemyName} is disabled in the config.");
+                enabled = false;
+                return;
+            }
             // Spawn nests at the positions of child objects
             foreach (Transform child in transform)
             {
@@ -287,6 +305,21 @@ namespace ArcadiaMoonPlugin
         {
             Debug.Log($"Current enemy type for force spawn is {enemyType.enemyName}");
             RoundManager.Instance.SpawnEnemyGameObject(position, yRot, -1, enemyType);
+        }
+
+        private bool IsSpawningEnabled()
+        {
+            switch (enemyName.ToLower())
+            {
+                case "flowerman":
+                    return ArcadiaMoon.ForceSpawnFlowerman.Value;
+                case "baboon hawk":
+                    return ArcadiaMoon.ForceSpawnBaboon.Value;
+                case "radmech":
+                    return ArcadiaMoon.ForceSpawnRadMech.Value;
+                default:
+                    return true; // Default to true if the enemy type is not explicitly handled
+            }
         }
     }
 }
