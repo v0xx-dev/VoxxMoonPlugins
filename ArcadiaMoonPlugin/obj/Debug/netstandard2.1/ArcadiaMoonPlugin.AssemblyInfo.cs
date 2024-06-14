@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("A helper tool for ArcadiaMoon mod")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e72a0f79ea4839a3b03cadb265605c620c211369")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+25743fa09b7b760b155594ea357020e976c36aa9")]
 [assembly: System.Reflection.AssemblyProductAttribute("ArcadiaMoonPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ArcadiaMoonPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

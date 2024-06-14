@@ -6,29 +6,31 @@ using UnityEngine.AI;
 using UnityEngine.Rendering;
 using HarmonyLib;
 using ArcadiaMoonPlugin.Patches;
+using GameNetcodeStuff;
 using System.Linq;
 using System.Collections;
+using UnityEditor.VersionControl;
 
 namespace ArcadiaMoonPlugin
 {
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
     public class ArcadiaMoon : BaseUnityPlugin
     {
-        private readonly Harmony harmony = new Harmony(PluginInfo.PLUGIN_GUID);
+        private Harmony harmony;
+        public static ArcadiaMoon instance;
 
         private void Awake()
         {
+            ArcadiaMoon.instance = this;
             // Plugin startup logic
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
 
-            harmony.PatchAll(typeof(PlayerControllerBPatch));
+            //Apply Harmony patch
+            this.harmony = new Harmony(PluginInfo.PLUGIN_GUID);
+            this.harmony.PatchAll();
+            Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} patched PlayerControllerB!");
         }
 
-        private void OnDestroy()
-        {
-            // Unpatch all Harmony patches when the plugin is destroyed
-            harmony.UnpatchSelf();
-        }
     }
 
     public class TimeAnimSyncronizer : MonoBehaviour
@@ -63,6 +65,16 @@ namespace ArcadiaMoonPlugin
         private float timeInZone = 0f;
         private int colliderCount = 0; // Counter to track how many colliders are currently being triggered
         private Coroutine resetCoroutine;
+        private PlayerControllerB playerController;
+
+        private void Start()
+        {
+            playerController = FindObjectOfType<PlayerControllerB>();
+            if (playerController == null)
+            {
+                Debug.LogError("Failed to obtain player controller!");
+            }
+        }
 
         private void OnTriggerEnter(Collider other)
         {
@@ -120,16 +132,35 @@ namespace ArcadiaMoonPlugin
             // Calculate the severity based on the time spent in the zone
             float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
 
-            // Update the heat severity and the Volume weight
-            PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
+            // Check if the player's health is low and we are not already resetting the effect
+            if (playerController.health <= 5 || playerController.teleportingThisFrame)
+            {
+                if (resetCoroutine == null)
+                {
+                    Debug.Log("Player close to death or teleporting, removing heatstroke!");
+                    resetCoroutine = StartCoroutine(GraduallyResetEffects());
+                }
+            }
+            else
+            {
+                // If player's health is not low and the resetCoroutine is running, stop it
+                if (resetCoroutine != null)
+                {
+                    StopCoroutine(resetCoroutine);
+                    resetCoroutine = null;
+                }
+                // Update the heat severity and the Volume weight
+                PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
+            }
         }
+
 
         private IEnumerator GraduallyResetEffects()
         {
             float startSeverity = PlayerHeatEffects.GetHeatSeverity();
             float elapsedTime = 0f;
 
-            while (elapsedTime < resetDuration)
+            while (elapsedTime < resetDuration && startSeverity > 0)
             {
                 elapsedTime += Time.deltaTime;
                 float newSeverity = Mathf.Lerp(startSeverity, 0f, elapsedTime / resetDuration);
@@ -224,7 +255,7 @@ namespace ArcadiaMoonPlugin
 
         private void Update()
         {
-            if (TimeOfDay.Instance.normalizedTimeOfDay > timer)
+            if (TimeOfDay.Instance.normalizedTimeOfDay > timer && TimeOfDay.Instance.timeHasStarted)
             {
                 // Destroy previously spawned nests and spawn enemies in their place
                 if (nestPrefab != null)

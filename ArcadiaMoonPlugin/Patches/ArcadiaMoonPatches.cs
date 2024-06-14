@@ -1,32 +1,81 @@
 using GameNetcodeStuff;
 using HarmonyLib;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace ArcadiaMoonPlugin.Patches
 {
-    [HarmonyPatch(typeof(PlayerControllerB))]
-    internal class PlayerControllerBPatch
+    [HarmonyPatch]
+    public class PlayerControllerBHeatStrokePatch
     {
-        [HarmonyPatch("Update")]
-        [HarmonyPostfix]
-        static void HeatzoneStrokePatch(ref float ___sprintMeter, ref float ___sprintTime)
+        private static float prevSprintMeter;
+        private static float severityMultiplier = 1f;
+
+        [HarmonyPatch(typeof(PlayerControllerB), "Update")]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.High)]
+        public static void HeatStrokePatchPrefix(PlayerControllerB __instance)
         {
+            if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
+                return;
+            PlayerControllerBHeatStrokePatch.prevSprintMeter = __instance.sprintMeter;
+        }
+
+        [HarmonyPatch(typeof(PlayerControllerB), "Update")]
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Low)]
+        public static void HeatStrokePatchPostfix(PlayerControllerB __instance)
+        {
+            if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
+                return;
             float severity = PlayerHeatEffects.GetHeatSeverity();
+            
             if (severity > 0)
             {
-                // Gradually decrease the maximum sprintMeter value from 1 to 0.6
-                float maxSprintMeter = Mathf.Lerp(1f, 0.6f, severity);
-                ___sprintMeter = Mathf.Clamp(___sprintMeter, 0, maxSprintMeter);
-
-                // Gradually decrease the maximum sprintTime value from 5 to 2
-                float maxSprintTime = Mathf.Lerp(5f, 1f, severity);
-                ___sprintTime = Mathf.Clamp(___sprintTime, 0, maxSprintTime);
-
-                //if (severity == 1)
-                //{
-                //    Debug.Log("Player has reached maximum heat exhaustion!");
-                //}
+                float delta = __instance.sprintMeter - PlayerControllerBHeatStrokePatch.prevSprintMeter;
+                if (delta < 0.0) //Stamina consumed
+                    __instance.sprintMeter = Mathf.Max(PlayerControllerBHeatStrokePatch.prevSprintMeter + delta * (1 + severity * severityMultiplier), 0.0f);
+                else if (delta > 0.0) //Stamina regenerated
+                    __instance.sprintMeter = Mathf.Min(PlayerControllerBHeatStrokePatch.prevSprintMeter + delta / (1 + severity * severityMultiplier), 1f);
+                // uncomment for debugging if needed
+                //Debug.Log($"Severity: {severity}, SprintMeter: {__instance.sprintMeter}");
             }
         }
+
+        [HarmonyPatch(typeof(PlayerControllerB), "LateUpdate")]
+        [HarmonyPrefix]
+        [HarmonyPriority(Priority.High)]
+        public static void HeatStrokePatchLatePrefix(PlayerControllerB __instance)
+        {
+            if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
+                return;
+            PlayerControllerBHeatStrokePatch.prevSprintMeter = __instance.sprintMeter;
+        }
+
+        [HarmonyPatch(typeof(PlayerControllerB), "LateUpdate")]
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Low)]
+        public static void HeatStrokePatchLatePostfix(PlayerControllerB __instance)
+        {
+            if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
+                return;
+            float severity = PlayerHeatEffects.GetHeatSeverity();
+
+            if (severity > 0)
+            {
+                float delta = __instance.sprintMeter - PlayerControllerBHeatStrokePatch.prevSprintMeter;
+                if (delta < 0.0) //Stamina consumed
+                    __instance.sprintMeter = Mathf.Max(PlayerControllerBHeatStrokePatch.prevSprintMeter + delta * (1 + severity * severityMultiplier), 0.0f);
+                else if (delta > 0.0) //Stamina regenerated
+                    __instance.sprintMeter = Mathf.Min(PlayerControllerBHeatStrokePatch.prevSprintMeter + delta / (1 + severity * severityMultiplier), 1f);
+                // uncomment for debugging if needed
+                //Debug.Log($"Severity: {severity}, SprintMeter: {__instance.sprintMeter}");
+
+            }
+        }
+
+        
     }
 }
+
+
