@@ -78,19 +78,14 @@ namespace ArcadiaMoonPlugin
         private Coroutine resetCoroutine;
         private PlayerControllerB playerController;
 
-        private void Start()
-        {
-            playerController = FindObjectOfType<PlayerControllerB>();
-            if (playerController == null)
-            {
-                Debug.LogError("Failed to obtain player controller!");
-            }
-        }
-
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player"))
             {
+                if (playerController == null)
+                {
+                    playerController = other.gameObject.GetComponent<PlayerControllerB>();
+                }
                 // Increase the collider count
                 colliderCount++;
 
@@ -118,7 +113,20 @@ namespace ArcadiaMoonPlugin
                 timeInZone += Time.deltaTime;
 
                 // Adjust the severity of effects based on the time spent in the zone
-                IncreaseEffects();
+
+                if (playerController.isPlayerDead || playerController.beamOutParticle.isPlaying)
+                {
+                    if (resetCoroutine == null)
+                    {
+                        Debug.Log("Player close to death or teleporting, removing heatstroke!");
+                        resetCoroutine = StartCoroutine(GraduallyResetEffects());
+                        colliderCount = 0;
+                    }
+                }
+                else
+                {
+                    IncreaseEffects();
+                }
             }
         }
 
@@ -143,25 +151,15 @@ namespace ArcadiaMoonPlugin
             // Calculate the severity based on the time spent in the zone
             float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
             // Check if the player's health is low and we are not already resetting the effect
-            if (playerController.health <= 5 || playerController.beamOutParticle.isPlaying)
+            
+            // If player's health is not low and the resetCoroutine is running, stop it
+            if (resetCoroutine != null)
             {
-                if (resetCoroutine == null)
-                {
-                    Debug.Log("Player close to death or teleporting, removing heatstroke!");
-                    resetCoroutine = StartCoroutine(GraduallyResetEffects());
-                }
+                StopCoroutine(resetCoroutine);
+                resetCoroutine = null;
             }
-            else
-            {
-                // If player's health is not low and the resetCoroutine is running, stop it
-                if (resetCoroutine != null)
-                {
-                    StopCoroutine(resetCoroutine);
-                    resetCoroutine = null;
-                }
-                // Update the heat severity and the Volume weight
-                PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
-            }
+            // Update the heat severity and the Volume weight
+            PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
         }
 
 
@@ -181,7 +179,17 @@ namespace ArcadiaMoonPlugin
 
             PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
         }
+
+        private void OnDestroy()
+        {
+            float currSeverity = PlayerHeatEffects.GetHeatSeverity();
+            if (currSeverity > 0f && resetCoroutine == null) 
+            {
+                Debug.Log("Player has not left a heatwave zone at the end of round, removing!");
+                resetCoroutine = StartCoroutine(GraduallyResetEffects());
+            }
     }
+}
 
     // Class for managing heat severity
     public static class PlayerHeatEffects
