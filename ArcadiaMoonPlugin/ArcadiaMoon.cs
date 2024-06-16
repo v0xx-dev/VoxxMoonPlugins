@@ -68,7 +68,6 @@ namespace ArcadiaMoonPlugin
         }
     }
 
-    // File: HeatwaveZoneInteract.cs
     internal class HeatwaveZoneInteract : MonoBehaviour
     {
         public float timeInZoneMax = 10f; // Time before maximum effects are applied
@@ -135,7 +134,6 @@ namespace ArcadiaMoonPlugin
         }
     }
 
-    // File: PlayerHeatEffects.cs
     internal class PlayerHeatEffects : MonoBehaviour
     {
         private static float heatSeverity = 0f;
@@ -261,7 +259,7 @@ namespace ArcadiaMoonPlugin
     }
 
 
-    public class EnemySpawner : MonoBehaviour
+    public class EnemySpawner : NetworkBehaviour
     {
         public string enemyName = "RadMech";
 
@@ -294,6 +292,10 @@ namespace ArcadiaMoonPlugin
 
         private void Start()
         {
+            if (!base.IsServer)
+            {
+                return;
+            }
             LoadResources(enemyName);
 
             // Check if forced spawning is enabled for the current enemy type
@@ -330,7 +332,7 @@ namespace ArcadiaMoonPlugin
 
         private void Update()
         {
-            if (TimeOfDay.Instance.normalizedTimeOfDay > timer && TimeOfDay.Instance.timeHasStarted)
+            if (TimeOfDay.Instance.normalizedTimeOfDay > timer && TimeOfDay.Instance.timeHasStarted && base.IsServer)
             {
                 // Destroy previously spawned nests and spawn enemies in their place
                 if (nestPrefab != null)
