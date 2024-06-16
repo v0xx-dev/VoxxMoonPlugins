@@ -68,35 +68,22 @@ namespace ArcadiaMoonPlugin
         }
     }
 
+    // File: HeatwaveZoneInteract.cs
     internal class HeatwaveZoneInteract : MonoBehaviour
     {
         public float timeInZoneMax = 10f; // Time before maximum effects are applied
         public float resetDuration = 5f; // Duration over which to gradually reduce the heat severity
         public Volume exhaustionFilter; // Filter for visual effects
 
-        private float timeInZone = 0f;
-        private int colliderCount = 0; // Counter to track how many colliders are currently being triggered
-        private Coroutine resetCoroutine;
-
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player"))
             {
-                // Increase the collider count
-                colliderCount++;
+                PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                // If this is the first collider being triggered, stop any ongoing reset coroutine
-                if (colliderCount == 1)
+                if (playerController == GameNetworkManager.Instance.localPlayerController)
                 {
-                    Debug.Log("Player has entered a heatwave zone!");
-                    if (resetCoroutine != null)
-                    {
-                        StopCoroutine(resetCoroutine);
-                        resetCoroutine = null;
-                    }
-
-                    // Reset time in zone
-                    timeInZone = PlayerHeatEffects.GetHeatSeverity() * timeInZoneMax; //recalculate timeInZone based on severity
+                    PlayerHeatEffects.OnPlayerEnterZone();
                 }
             }
         }
@@ -105,28 +92,19 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
-                
-                PlayerControllerB playerController = GameNetworkManager.Instance.localPlayerController;
+                PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                if (playerController.isPlayerDead || playerController.beamUpParticle.isPlaying)
+                if (playerController == GameNetworkManager.Instance.localPlayerController)
                 {
-                    
-                    if (resetCoroutine == null)
+                    if (playerController.isPlayerDead || playerController.beamUpParticle.isPlaying)
                     {
-                        Debug.Log("Player close to death or teleporting, removing heatstroke!");
-                        resetCoroutine = StartCoroutine(GraduallyResetEffects());
-                        colliderCount = 0;
+                        PlayerHeatEffects.OnPlayerNearDeathOrTeleporting(exhaustionFilter, resetDuration);
+                    }
+                    else
+                    {
+                        PlayerHeatEffects.IncreaseEffects(timeInZoneMax, exhaustionFilter);
                     }
                 }
-                else
-                {
-                    // Increment the time counter while the player is in the zone
-                    timeInZone += Time.deltaTime;
-                    // Adjust the severity of effects based on the time spent in the zone
-                    IncreaseEffects();
-                }
-
-
             }
         }
 
@@ -134,77 +112,120 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
-                // Decrease the collider count
-                colliderCount = Mathf.Max(colliderCount - 1, 0);
+                PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                // If there are no more colliders being triggered, start the reset coroutine
-                if (colliderCount == 0)
+                if (playerController == GameNetworkManager.Instance.localPlayerController)
                 {
-                    Debug.Log("Player has left a heatwave zone!");
-                    if (resetCoroutine == null)
-                    {
-                        resetCoroutine = StartCoroutine(GraduallyResetEffects());
-                    }
+                    PlayerHeatEffects.OnPlayerExitZone(exhaustionFilter, resetDuration);
                 }
             }
         }
 
         private void LateUpdate()
         {
-            float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
+            float severity = Mathf.Clamp01(PlayerHeatEffects.GetExhaustionTimer() / timeInZoneMax);
             float playerSeverity = PlayerHeatEffects.GetHeatSeverity();
-            Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}, timeInZone: {timeInZone}, colliders #{colliderCount}");
+            /*Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}," +
+                $" timeInZone: {PlayerHeatEffects.GetExhaustionTimer()}, colliders #{PlayerHeatEffects.GetColliderCount()}");*/
         }
 
-        private void IncreaseEffects()
+        private void OnDestroy()
         {
-            // Calculate the severity based on the time spent in the zone
-            float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
+            PlayerHeatEffects.OnZoneDestroy(exhaustionFilter);
+        }
+    }
+
+    // File: PlayerHeatEffects.cs
+    internal class PlayerHeatEffects : MonoBehaviour
+    {
+        private static float heatSeverity = 0f;
+        private static float exhaustionTimer = 0f;
+        private static int colliderCount = 0;
+        private static Coroutine resetCoroutine;
+
+        internal static void OnPlayerEnterZone()
+        {
+            colliderCount++;
+            if (colliderCount == 1 && resetCoroutine != null)
+            {
+                StopResetCoroutine();
+            }
+        }
+
+        internal static void OnPlayerNearDeathOrTeleporting(Volume exhaustionFilter, float resetDuration)
+        {
+            if (resetCoroutine == null)
+            {
+                resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
+                colliderCount = 0;
+            }
+        }
+
+        internal static void IncreaseEffects(float timeInZoneMax, Volume exhaustionFilter)
+        {
+            exhaustionTimer += Time.deltaTime;
+            float severity = Mathf.Clamp01(exhaustionTimer / timeInZoneMax);
 
             if (resetCoroutine != null)
             {
-                StopCoroutine(resetCoroutine);
-                resetCoroutine = null;
+                StopResetCoroutine();
             }
-            // Update the heat severity and the Volume weight
-            PlayerHeatEffects.SetHeatSeverity(severity, exhaustionFilter);
+
+            SetHeatSeverity(severity, exhaustionFilter);
         }
 
-
-        private IEnumerator GraduallyResetEffects()
+        internal static void OnPlayerExitZone(Volume exhaustionFilter, float resetDuration)
         {
-            float startSeverity = PlayerHeatEffects.GetHeatSeverity();
+            colliderCount = Mathf.Max(colliderCount - 1, 0);
+            if (colliderCount == 0 && resetCoroutine == null)
+            {
+                resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
+            }
+        }
+
+        internal static void OnZoneDestroy(Volume exhaustionFilter)
+        {
+            if (heatSeverity > 0f && resetCoroutine == null)
+            {
+                SetHeatSeverity(0f, exhaustionFilter);
+                colliderCount = 0;
+                exhaustionTimer = 0f;
+            }
+        }
+
+        private static void StopResetCoroutine()
+        {
+            Instance.StopCoroutine(resetCoroutine);
+            resetCoroutine = null;
+        }
+
+        private static IEnumerator GraduallyResetEffects(Volume exhaustionFilter, float resetDuration)
+        {
+            float startSeverity = heatSeverity;
             float elapsedTime = 0f;
 
             while (elapsedTime < resetDuration && startSeverity > 0)
             {
                 elapsedTime += Time.deltaTime;
                 float newSeverity = Mathf.Lerp(startSeverity, 0f, elapsedTime / resetDuration);
-                PlayerHeatEffects.SetHeatSeverity(newSeverity, exhaustionFilter);
+                SetHeatSeverity(newSeverity, exhaustionFilter);
 
                 yield return null;
             }
 
-            timeInZone = 0;
-            PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
+            exhaustionTimer = 0f;
+            SetHeatSeverity(0f, exhaustionFilter);
         }
 
-        private void OnDestroy()
+        internal static void SetExhaustionTimer(float timeInZone)
         {
-            float currSeverity = PlayerHeatEffects.GetHeatSeverity();
-            if (currSeverity > 0f && resetCoroutine == null) 
-            {
-                PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
-                colliderCount = 0;
-                timeInZone = 0;
-            }
-    }
-}
+            exhaustionTimer = timeInZone;
+        }
 
-    // Class for managing heat severity
-    internal class PlayerHeatEffects: MonoBehaviour
-    {
-        private static float heatSeverity = 0f;
+        public static float GetExhaustionTimer()
+        {
+            return exhaustionTimer;
+        }
 
         internal static void SetHeatSeverity(float severity, Volume volume)
         {
@@ -218,6 +239,24 @@ namespace ArcadiaMoonPlugin
         public static float GetHeatSeverity()
         {
             return heatSeverity;
+        }
+
+        public static int GetColliderCount()
+        {
+            return colliderCount;
+        }
+
+        private static PlayerHeatEffects instance;
+        public static PlayerHeatEffects Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new GameObject("PlayerHeatEffects").AddComponent<PlayerHeatEffects>();
+                }
+                return instance;
+            }
         }
     }
 
