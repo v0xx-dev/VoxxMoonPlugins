@@ -11,6 +11,7 @@ using System.Linq;
 using System.Collections;
 using UnityEditor.VersionControl;
 using BepInEx.Configuration;
+using UnityEngine.PlayerLoop;
 
 namespace ArcadiaMoonPlugin
 {
@@ -67,25 +68,20 @@ namespace ArcadiaMoonPlugin
         }
     }
 
-    public class HeatwaveZoneInteract : MonoBehaviour
+    internal class HeatwaveZoneInteract : MonoBehaviour
     {
-        public float timeInZoneMax = 10f; // Maximum time before maximum effects are applied
+        public float timeInZoneMax = 10f; // Time before maximum effects are applied
         public float resetDuration = 5f; // Duration over which to gradually reduce the heat severity
         public Volume exhaustionFilter; // Filter for visual effects
 
         private float timeInZone = 0f;
         private int colliderCount = 0; // Counter to track how many colliders are currently being triggered
         private Coroutine resetCoroutine;
-        private PlayerControllerB playerController;
 
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Player"))
             {
-                if (playerController == null)
-                {
-                    playerController = other.gameObject.GetComponent<PlayerControllerB>();
-                }
                 // Increase the collider count
                 colliderCount++;
 
@@ -109,13 +105,12 @@ namespace ArcadiaMoonPlugin
         {
             if (other.CompareTag("Player"))
             {
-                // Increment the time counter while the player is in the zone
-                timeInZone += Time.deltaTime;
+                
+                PlayerControllerB playerController = GameNetworkManager.Instance.localPlayerController;
 
-                // Adjust the severity of effects based on the time spent in the zone
-
-                if (playerController.isPlayerDead || playerController.beamOutParticle.isPlaying)
+                if (playerController.isPlayerDead || playerController.beamUpParticle.isPlaying)
                 {
+                    
                     if (resetCoroutine == null)
                     {
                         Debug.Log("Player close to death or teleporting, removing heatstroke!");
@@ -125,8 +120,13 @@ namespace ArcadiaMoonPlugin
                 }
                 else
                 {
+                    // Increment the time counter while the player is in the zone
+                    timeInZone += Time.deltaTime;
+                    // Adjust the severity of effects based on the time spent in the zone
                     IncreaseEffects();
                 }
+
+
             }
         }
 
@@ -135,24 +135,32 @@ namespace ArcadiaMoonPlugin
             if (other.CompareTag("Player"))
             {
                 // Decrease the collider count
-                colliderCount--;
+                colliderCount = Mathf.Max(colliderCount - 1, 0);
 
                 // If there are no more colliders being triggered, start the reset coroutine
                 if (colliderCount == 0)
                 {
                     Debug.Log("Player has left a heatwave zone!");
-                    resetCoroutine = StartCoroutine(GraduallyResetEffects());
+                    if (resetCoroutine == null)
+                    {
+                        resetCoroutine = StartCoroutine(GraduallyResetEffects());
+                    }
                 }
             }
+        }
+
+        private void LateUpdate()
+        {
+            float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
+            float playerSeverity = PlayerHeatEffects.GetHeatSeverity();
+            Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}, timeInZone: {timeInZone}, colliders #{colliderCount}");
         }
 
         private void IncreaseEffects()
         {
             // Calculate the severity based on the time spent in the zone
             float severity = Mathf.Clamp01(timeInZone / timeInZoneMax);
-            // Check if the player's health is low and we are not already resetting the effect
-            
-            // If player's health is not low and the resetCoroutine is running, stop it
+
             if (resetCoroutine != null)
             {
                 StopCoroutine(resetCoroutine);
@@ -177,6 +185,7 @@ namespace ArcadiaMoonPlugin
                 yield return null;
             }
 
+            timeInZone = 0;
             PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
         }
 
@@ -185,18 +194,19 @@ namespace ArcadiaMoonPlugin
             float currSeverity = PlayerHeatEffects.GetHeatSeverity();
             if (currSeverity > 0f && resetCoroutine == null) 
             {
-                Debug.Log("Player has not left a heatwave zone at the end of round, removing!");
-                resetCoroutine = StartCoroutine(GraduallyResetEffects());
+                PlayerHeatEffects.SetHeatSeverity(0f, exhaustionFilter);
+                colliderCount = 0;
+                timeInZone = 0;
             }
     }
 }
 
     // Class for managing heat severity
-    public static class PlayerHeatEffects
+    internal class PlayerHeatEffects: MonoBehaviour
     {
         private static float heatSeverity = 0f;
 
-        public static void SetHeatSeverity(float severity, Volume volume)
+        internal static void SetHeatSeverity(float severity, Volume volume)
         {
             heatSeverity = severity;
             if (volume != null)
@@ -234,7 +244,7 @@ namespace ArcadiaMoonPlugin
             if (enemyType != null)
             {
                 nestPrefab = enemyType.nestSpawnPrefab;
-                Debug.Log("EnemyType and prefab loaded successfully!");
+                Debug.Log($"{enemyType.enemyName} and its prefab loaded successfully!");
             }
             else
             {
@@ -269,11 +279,11 @@ namespace ArcadiaMoonPlugin
                     if (nest.GetComponentInChildren<NetworkObject>())
                     {
                         nest.GetComponentInChildren<NetworkObject>().Spawn(destroyWithScene: true);
-                        Debug.Log("Spawned an enemy nest prefab!");
+                        Debug.Log($"Spawned an {enemyName} nest prefab!");
                     }
                     else
                     {
-                        Debug.LogError("Nest prefab does not have a NetworkObject component. Desync possible!");
+                        Debug.LogError($"Nest prefab of {enemyName} does not have a NetworkObject component. Desync possible!");
                     }
                 }
             }
@@ -292,7 +302,7 @@ namespace ArcadiaMoonPlugin
                         float nest_angle = nest.transform.rotation.eulerAngles.y;
                         Destroy(nest);
                         SpawnEnemyAtPosition(nest_position, nest_angle);
-                        Debug.Log("Spawned enemy in place of a nest prefab!");
+                        Debug.Log($"Spawned enemy {enemyName} in place of a nest prefab!");
                     }
                     spawnedNests.Clear();
                     Debug.Log($"Destroyed all spawned enemy nest prefabs of {enemyType.enemyName}!");
@@ -312,6 +322,11 @@ namespace ArcadiaMoonPlugin
         private void SpawnEnemyAtPosition(Vector3 position, float yRot = 0f)
         {
             Debug.Log($"Current enemy type for force spawn is {enemyType.enemyName}");
+            if (enemyType.enemyPrefab == null)
+            {
+                Debug.LogError($"{enemyType.enemyName} does not have a valid enemy prefab to spawn.");
+                return;
+            }
             RoundManager.Instance.SpawnEnemyGameObject(position, yRot, -1, enemyType);
         }
 

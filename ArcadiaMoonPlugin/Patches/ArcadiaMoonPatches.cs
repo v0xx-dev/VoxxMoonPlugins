@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ArcadiaMoonPlugin.Patches
 {
     [HarmonyPatch]
-    public class PlayerControllerBHeatStrokePatch
+    internal class PlayerControllerBHeatStrokePatch
     {
         private static float prevSprintMeter;
         private static float severityMultiplier = 1f;
@@ -14,7 +14,7 @@ namespace ArcadiaMoonPlugin.Patches
         [HarmonyPatch(typeof(PlayerControllerB), "Update")]
         [HarmonyPrefix]
         [HarmonyPriority(Priority.High)]
-        public static void HeatStrokePatchPrefix(PlayerControllerB __instance)
+        private static void HeatStrokePatchPrefix(PlayerControllerB __instance)
         {
             if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
                 return;
@@ -24,7 +24,7 @@ namespace ArcadiaMoonPlugin.Patches
         [HarmonyPatch(typeof(PlayerControllerB), "Update")]
         [HarmonyPostfix]
         [HarmonyPriority(Priority.Low)]
-        public static void HeatStrokePatchPostfix(PlayerControllerB __instance)
+        private static void HeatStrokePatchPostfix(PlayerControllerB __instance)
         {
             if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
                 return;
@@ -45,7 +45,7 @@ namespace ArcadiaMoonPlugin.Patches
         [HarmonyPatch(typeof(PlayerControllerB), "LateUpdate")]
         [HarmonyPrefix]
         [HarmonyPriority(Priority.High)]
-        public static void HeatStrokePatchLatePrefix(PlayerControllerB __instance)
+        private static void HeatStrokePatchLatePrefix(PlayerControllerB __instance)
         {
             if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
                 return;
@@ -55,7 +55,7 @@ namespace ArcadiaMoonPlugin.Patches
         [HarmonyPatch(typeof(PlayerControllerB), "LateUpdate")]
         [HarmonyPostfix]
         [HarmonyPriority(Priority.Low)]
-        public static void HeatStrokePatchLatePostfix(PlayerControllerB __instance)
+        private static void HeatStrokePatchLatePostfix(PlayerControllerB __instance)
         {
             if (!((NetworkBehaviour)__instance).IsOwner || !__instance.isPlayerControlled)
                 return;
