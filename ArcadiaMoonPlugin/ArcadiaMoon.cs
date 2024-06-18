@@ -61,7 +61,7 @@ namespace ArcadiaMoonPlugin
 
         private void Update()
         {
-            if (timeSyncAnimator != null)
+            if (timeSyncAnimator != null && TimeOfDay.Instance.timeHasStarted)
             {
                 timeSyncAnimator.SetFloat("timeOfDay", Mathf.Clamp(TimeOfDay.Instance.normalizedTimeOfDay, 0f, 0.99f));
             }
@@ -82,7 +82,7 @@ namespace ArcadiaMoonPlugin
 
                 if (playerController == GameNetworkManager.Instance.localPlayerController)
                 {
-                    PlayerHeatEffects.OnPlayerEnterZone();
+                    PlayerHeatEffects.OnPlayerEnterZone(timeInZoneMax);
                 }
             }
         }
@@ -120,13 +120,15 @@ namespace ArcadiaMoonPlugin
             }
         }
 
+        /*
         private void LateUpdate()
         {
             float severity = Mathf.Clamp01(PlayerHeatEffects.GetExhaustionTimer() / timeInZoneMax);
             float playerSeverity = PlayerHeatEffects.GetHeatSeverity();
-            /*Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}," +
-                $" timeInZone: {PlayerHeatEffects.GetExhaustionTimer()}, colliders #{PlayerHeatEffects.GetColliderCount()}");*/
+            Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}," +
+                $" timeInZone: {PlayerHeatEffects.GetExhaustionTimer()}, colliders #{PlayerHeatEffects.GetColliderCount()}");
         }
+        */
 
         private void OnDestroy()
         {
@@ -141,12 +143,14 @@ namespace ArcadiaMoonPlugin
         private static int colliderCount = 0;
         private static Coroutine resetCoroutine;
 
-        internal static void OnPlayerEnterZone()
+        internal static void OnPlayerEnterZone(float timeInZoneMax)
         {
             colliderCount++;
             if (colliderCount == 1 && resetCoroutine != null)
             {
                 StopResetCoroutine();
+                exhaustionTimer = timeInZoneMax * heatSeverity; //recalculate time based on current severety
+                Debug.Log("Player has entered a heatwave zone!");
             }
         }
 
@@ -156,6 +160,7 @@ namespace ArcadiaMoonPlugin
             {
                 resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
                 colliderCount = 0;
+                Debug.Log("Player is dead or teleporting, removing heatstroke!");
             }
         }
 
@@ -178,6 +183,7 @@ namespace ArcadiaMoonPlugin
             if (colliderCount == 0 && resetCoroutine == null)
             {
                 resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
+                Debug.Log("Player has left the heatwave zone!");
             }
         }
 
@@ -188,13 +194,17 @@ namespace ArcadiaMoonPlugin
                 SetHeatSeverity(0f, exhaustionFilter);
                 colliderCount = 0;
                 exhaustionTimer = 0f;
+                Debug.Log("Heatwave zone object destroyed, removing heatstroke!");
             }
         }
 
         private static void StopResetCoroutine()
         {
-            Instance.StopCoroutine(resetCoroutine);
-            resetCoroutine = null;
+            if (resetCoroutine != null)
+            {
+                Instance.StopCoroutine(resetCoroutine);
+                resetCoroutine = null;
+            }
         }
 
         private static IEnumerator GraduallyResetEffects(Volume exhaustionFilter, float resetDuration)
@@ -252,6 +262,7 @@ namespace ArcadiaMoonPlugin
                 if (instance == null)
                 {
                     instance = new GameObject("PlayerHeatEffects").AddComponent<PlayerHeatEffects>();
+                    //DontDestroyOnLoad(instance.gameObject);
                 }
                 return instance;
             }
@@ -259,7 +270,7 @@ namespace ArcadiaMoonPlugin
     }
 
 
-    public class EnemySpawner : NetworkBehaviour
+    public class EnemySpawner : MonoBehaviour
     {
         public string enemyName = "RadMech";
 
@@ -292,7 +303,8 @@ namespace ArcadiaMoonPlugin
 
         private void Start()
         {
-            if (!base.IsServer)
+            //Don't spawn if not a host
+            if (!GameNetworkManager.Instance.isHostingGame)
             {
                 return;
             }
@@ -332,7 +344,7 @@ namespace ArcadiaMoonPlugin
 
         private void Update()
         {
-            if (TimeOfDay.Instance.normalizedTimeOfDay > timer && TimeOfDay.Instance.timeHasStarted && base.IsServer)
+            if (TimeOfDay.Instance.normalizedTimeOfDay > timer && TimeOfDay.Instance.timeHasStarted && GameNetworkManager.Instance.isHostingGame)
             {
                 // Destroy previously spawned nests and spawn enemies in their place
                 if (nestPrefab != null)
