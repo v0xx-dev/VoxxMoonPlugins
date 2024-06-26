@@ -5,21 +5,22 @@ using Unity.Netcode;
 using UnityEngine.AI;
 using UnityEngine.Rendering;
 using HarmonyLib;
-using ArcadiaMoonPlugin.Patches;
+using VoxxMapHelperPlugin.Patches;
 using GameNetcodeStuff;
 using System.Linq;
 using System.Collections;
 using UnityEditor.VersionControl;
 using BepInEx.Configuration;
 using UnityEngine.PlayerLoop;
+using VoxxMapHelperPlugin;
 
-namespace ArcadiaMoonPlugin
+namespace VoxxMapHelperPlugin
 {
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
-    public class ArcadiaMoon : BaseUnityPlugin
+    public class VoxxMapHelper : BaseUnityPlugin
     {
         private Harmony harmony;
-        public static ArcadiaMoon instance;
+        public static VoxxMapHelper instance;
 
         public static ConfigEntry<bool> ForceSpawnFlowerman { get; private set; }
         public static ConfigEntry<bool> ForceSpawnBaboon { get; private set; }
@@ -33,9 +34,9 @@ namespace ArcadiaMoonPlugin
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
 
             // Configuration entries
-            ForceSpawnFlowerman = Config.Bind("Spawning", "ForceSpawnFlowerman", true, "Enable forced spawning for Flowerman");
-            ForceSpawnBaboon = Config.Bind("Spawning", "ForceSpawnBaboon", true, "Enable forced spawning for Baboon hawk");
-            ForceSpawnRadMech = Config.Bind("Spawning", "ForceSpawnRadMech", true, "Enable forced spawning for Old Bird");
+            ForceSpawnFlowerman = Config.Bind("Spawning", "ForceSpawnFlowerman", true, "Enable custom deterministic spawner for Flowerman");
+            ForceSpawnBaboon = Config.Bind("Spawning", "ForceSpawnBaboon", true, "Enable custom deterministic spawner for Baboon hawk");
+            ForceSpawnRadMech = Config.Bind("Spawning", "ForceSpawnRadMech", true, "Enable custom deterministic spawner for Old Bird");
 
             //Apply Harmony patch
             this.harmony = new Harmony(PluginInfo.PLUGIN_GUID);
@@ -80,7 +81,7 @@ namespace ArcadiaMoonPlugin
             {
                 PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                if (playerController == GameNetworkManager.Instance.localPlayerController)
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
                 {
                     PlayerHeatEffects.OnPlayerEnterZone(timeInZoneMax);
                 }
@@ -93,11 +94,11 @@ namespace ArcadiaMoonPlugin
             {
                 PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                if (playerController == GameNetworkManager.Instance.localPlayerController)
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
                 {
                     if (playerController.isPlayerDead || playerController.beamUpParticle.isPlaying)
                     {
-                        PlayerHeatEffects.OnPlayerNearDeathOrTeleporting(exhaustionFilter, resetDuration);
+                        PlayerHeatEffects.OnPlayerDeathOrTeleporting(exhaustionFilter, resetDuration);
                     }
                     else
                     {
@@ -113,22 +114,12 @@ namespace ArcadiaMoonPlugin
             {
                 PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                if (playerController == GameNetworkManager.Instance.localPlayerController)
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
                 {
                     PlayerHeatEffects.OnPlayerExitZone(exhaustionFilter, resetDuration);
                 }
             }
         }
-
-        /*
-        private void LateUpdate()
-        {
-            float severity = Mathf.Clamp01(PlayerHeatEffects.GetExhaustionTimer() / timeInZoneMax);
-            float playerSeverity = PlayerHeatEffects.GetHeatSeverity();
-            Debug.Log($"Calculated severity: {severity}, Player severity: {playerSeverity}," +
-                $" timeInZone: {PlayerHeatEffects.GetExhaustionTimer()}, colliders #{PlayerHeatEffects.GetColliderCount()}");
-        }
-        */
 
         private void OnDestroy()
         {
@@ -140,26 +131,26 @@ namespace ArcadiaMoonPlugin
     {
         private static float heatSeverity = 0f;
         private static float exhaustionTimer = 0f;
-        private static int colliderCount = 0;
+        private static bool inZone = false;
         private static Coroutine resetCoroutine;
 
         internal static void OnPlayerEnterZone(float timeInZoneMax)
         {
-            colliderCount++;
-            if (colliderCount == 1 && resetCoroutine != null)
+            if (!inZone)
             {
                 StopResetCoroutine();
                 exhaustionTimer = timeInZoneMax * heatSeverity; //recalculate time based on current severety
+                inZone = true;
                 Debug.Log("Player has entered a heatwave zone!");
             }
         }
 
-        internal static void OnPlayerNearDeathOrTeleporting(Volume exhaustionFilter, float resetDuration)
+        internal static void OnPlayerDeathOrTeleporting(Volume exhaustionFilter, float resetDuration)
         {
             if (resetCoroutine == null)
             {
                 resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
-                colliderCount = 0;
+                inZone = false;
                 Debug.Log("Player is dead or teleporting, removing heatstroke!");
             }
         }
@@ -179,8 +170,8 @@ namespace ArcadiaMoonPlugin
 
         internal static void OnPlayerExitZone(Volume exhaustionFilter, float resetDuration)
         {
-            colliderCount = Mathf.Max(colliderCount - 1, 0);
-            if (colliderCount == 0 && resetCoroutine == null)
+            inZone = false;
+            if (resetCoroutine == null)
             {
                 resetCoroutine = Instance.StartCoroutine(GraduallyResetEffects(exhaustionFilter, resetDuration));
                 Debug.Log("Player has left the heatwave zone!");
@@ -192,7 +183,7 @@ namespace ArcadiaMoonPlugin
             if (heatSeverity > 0f && resetCoroutine == null)
             {
                 SetHeatSeverity(0f, exhaustionFilter);
-                colliderCount = 0;
+                inZone = false;
                 exhaustionTimer = 0f;
                 Debug.Log("Heatwave zone object destroyed, removing heatstroke!");
             }
@@ -210,9 +201,9 @@ namespace ArcadiaMoonPlugin
         private static IEnumerator GraduallyResetEffects(Volume exhaustionFilter, float resetDuration)
         {
             float startSeverity = heatSeverity;
-            float elapsedTime = 0f;
-
-            while (elapsedTime < resetDuration && startSeverity > 0)
+            //recalculate elapsed time so it'd take less time for interm. values of severity
+            float elapsedTime = resetDuration * (1f - startSeverity);
+            while (elapsedTime < resetDuration && startSeverity > 0f)
             {
                 elapsedTime += Time.deltaTime;
                 float newSeverity = Mathf.Lerp(startSeverity, 0f, elapsedTime / resetDuration);
@@ -247,11 +238,6 @@ namespace ArcadiaMoonPlugin
         public static float GetHeatSeverity()
         {
             return heatSeverity;
-        }
-
-        public static int GetColliderCount()
-        {
-            return colliderCount;
         }
 
         private static PlayerHeatEffects instance;
@@ -388,14 +374,267 @@ namespace ArcadiaMoonPlugin
             switch (enemyName.ToLower())
             {
                 case "flowerman":
-                    return ArcadiaMoon.ForceSpawnFlowerman.Value;
+                    return VoxxMapHelper.ForceSpawnFlowerman.Value;
                 case "baboon hawk":
-                    return ArcadiaMoon.ForceSpawnBaboon.Value;
+                    return VoxxMapHelper.ForceSpawnBaboon.Value;
                 case "radmech":
-                    return ArcadiaMoon.ForceSpawnRadMech.Value;
+                    return VoxxMapHelper.ForceSpawnRadMech.Value;
                 default:
                     return true; // Default to true if the enemy type is not explicitly handled
             }
         }
     }
+
+    public class RingPortalStormEvent : MonoBehaviour
+    {
+        public List<float> deliveryTimes = new List<float>();
+
+
+        [SerializeField] private GameObject shipmentPositionsObject; // Assign this in the inspector
+        [SerializeField] private float maxRotationSpeed = 5f;
+        [SerializeField] private float rotationSpeedChangeDuration = 10f;
+        [SerializeField] private float shipmentFallDuration = 15f;
+        [SerializeField] private float cooldownDuration = 30f;
+        [SerializeField] private float movementDuration = 30f; // Duration of movement between positions
+        [SerializeField] private AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1); // For smooth movement
+        [SerializeField] private float maxTiltAngle = 25f; // Maximum tilt angle in degrees
+
+
+        private Animator animator;
+        private Vector3 targetRotation;
+        private System.Random seededRandom;
+        private List<GameObject> shipments = new List<GameObject>();
+        private List<Transform> shipmentPositions = new List<Transform>();
+        private int currentShipmentIndex = 0;
+        private float timer = 0f;
+        private bool isPortalOpenAnimationFinished = false;
+        private bool isPortalCloseAnimationFinished = false;
+        private bool isDelivering = false;
+
+
+        private void Start()
+        {
+            Debug.Log("RingPortalStormEvent: Start method called");
+            animator = GetComponent<Animator>();
+            animator.SetBool("isPortalOpenFinished", false);
+            animator.SetBool("isPortalCloseFinished", false);
+            seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
+            InitializeShipments();
+            InitializeShipmentPositions();
+        }
+
+        private void Update()
+        {
+            timer += Time.deltaTime;
+
+            if (currentShipmentIndex < deliveryTimes.Count && timer >= deliveryTimes[currentShipmentIndex] && !isDelivering)
+            {
+                Debug.Log($"RingPortalStormEvent: Starting delivery sequence for shipment {currentShipmentIndex}");
+                StartCoroutine(PerformDeliverySequence());
+            }
+        }
+
+        private void InitializeShipments()
+        {
+            Debug.Log("RingPortalStormEvent: Initializing shipments");
+            Transform shipmentsParent = transform.Find("Shipments");
+            foreach (Transform shipment in shipmentsParent)
+            {
+                shipments.Add(shipment.gameObject);
+                shipment.gameObject.SetActive(false);
+            }
+        }
+
+        private void InitializeShipmentPositions()
+        {
+            Debug.Log("RingPortalStormEvent: Initializing shipment positions");
+            if (shipmentPositionsObject == null)
+            {
+                Debug.LogError("RingPortalStormEvent: ShipmentPositions object is not assigned!");
+                return;
+            }
+
+            shipmentPositions.Clear(); // Clear any existing positions
+
+            // Iterate through all children of the shipmentPositionsObject
+            foreach (Transform child in shipmentPositionsObject.transform)
+            {
+                shipmentPositions.Add(child);
+                Debug.Log($"Added shipment position: {child.name} at {child.position}");
+            }
+
+            Debug.Log($"Total shipment positions: {shipmentPositions.Count}");
+        }
+
+        private IEnumerator PerformDeliverySequence()
+        {
+            Debug.Log("RingPortalStormEvent: Starting delivery sequence");
+            isDelivering = true;
+            // Move to next position
+            Debug.Log("RingPortalStormEvent: Moving to next position");
+            yield return StartCoroutine(MoveToNextPosition());
+
+            // Increase rotation speed
+            Debug.Log("RingPortalStormEvent: Increasing rotation speed");
+            yield return StartCoroutine(IncreaseRotationSpeed());
+
+            // Activate portal and wait for animation to finish
+            Debug.Log("RingPortalStormEvent: Activating portal");
+            animator.SetBool("isPortalActive", true);
+            animator.SetBool("isPortalOpenFinished", false);
+
+            Debug.Log("RingPortalStormEvent: Waiting for portal open animation to finish");
+            yield return new WaitUntil(() => isPortalOpenAnimationFinished);
+            Debug.Log("RingPortalStormEvent: Portal open animation finished");
+
+            Debug.Log("RingPortalStormEvent: Spawning and dropping shipment");
+            yield return StartCoroutine(SpawnAndDropShipment());
+
+            Debug.Log("RingPortalStormEvent: Closing portal");
+            animator.SetBool("isPortalActive", false);
+            animator.SetBool("isPortalCloseFinished", false);
+
+            Debug.Log("RingPortalStormEvent: Waiting for portal close animation to finish");
+            yield return new WaitUntil(() => isPortalCloseAnimationFinished);
+            Debug.Log("RingPortalStormEvent: Portal close animation finished");
+
+            Debug.Log("RingPortalStormEvent: Decreasing rotation speed");
+            yield return StartCoroutine(DecreaseRotationSpeed());
+
+            Debug.Log($"RingPortalStormEvent: Preparing for next delivery. Current index: {currentShipmentIndex}");
+            currentShipmentIndex++;
+            yield return new WaitForSeconds(cooldownDuration);
+
+            Debug.Log("RingPortalStormEvent: Delivery sequence completed");
+            isDelivering = false;
+        }
+
+        private IEnumerator IncreaseRotationSpeed()
+        {
+            Debug.Log("RingPortalStormEvent: Starting to increase rotation speed");
+            float elapsedTime = 0f;
+
+            while (elapsedTime < rotationSpeedChangeDuration)
+            {
+                float t = elapsedTime / rotationSpeedChangeDuration;
+                float outerSpeed = Mathf.Lerp(1f, maxRotationSpeed, t);
+                float innerSpeed = Mathf.Lerp(0.5f, maxRotationSpeed * 0.75f, t);
+
+                animator.SetFloat("RotSpeedOuter", outerSpeed);
+                animator.SetFloat("RotSpeedInner", innerSpeed);
+
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+            Debug.Log("RingPortalStormEvent: Finished increasing rotation speed");
+        }
+
+        private IEnumerator DecreaseRotationSpeed()
+        {
+            Debug.Log("RingPortalStormEvent: Starting to decrease rotation speed");
+
+            // Choose random tilt angles
+            float targetTiltX = (float)seededRandom.NextDouble() * maxTiltAngle;
+            float targetTiltZ = (float)seededRandom.NextDouble() * maxTiltAngle;
+            targetRotation = new Vector3(targetTiltX, transform.rotation.eulerAngles.y, targetTiltZ);
+
+            float elapsedTime = 0f;
+            Vector3 startRotation = transform.rotation.eulerAngles;
+
+            while (elapsedTime < rotationSpeedChangeDuration)
+            {
+                float t = elapsedTime / rotationSpeedChangeDuration;
+                float outerSpeed = Mathf.Lerp(maxRotationSpeed, 1f, t);
+                float innerSpeed = Mathf.Lerp(maxRotationSpeed * 0.75f, 0.5f, t);
+
+                animator.SetFloat("RotSpeedOuter", outerSpeed);
+                animator.SetFloat("RotSpeedInner", innerSpeed);
+
+                // Gradually change rotation
+                Vector3 newRotation = Vector3.Lerp(startRotation, targetRotation, t);
+                transform.rotation = Quaternion.Euler(newRotation);
+
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        private IEnumerator SpawnAndDropShipment()
+        {
+            Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex % shipments.Count}");
+            GameObject shipment = shipments[currentShipmentIndex % shipments.Count];
+            shipment.SetActive(true);
+            shipment.transform.position = transform.position;
+
+            Rigidbody rb = shipment.GetComponent<Rigidbody>();
+            if (rb == null)
+            {
+                rb = shipment.AddComponent<Rigidbody>();
+            }
+
+            rb.isKinematic = false;
+            rb.useGravity = true;
+
+            yield return new WaitForSeconds(shipmentFallDuration);
+
+            rb.isKinematic = true;
+            rb.useGravity = false;
+
+            Debug.Log("RingPortalStormEvent: Shipment dropped");
+        }
+
+        private IEnumerator MoveToNextPosition()
+        {
+            Debug.Log("RingPortalStormEvent: Starting movement to next position");
+            int nextPositionIndex = (currentShipmentIndex + 1) % shipmentPositions.Count;
+            Vector3 startPosition = transform.position;
+            Vector3 targetPosition = shipmentPositions[nextPositionIndex].position;
+
+            // Preserve the current Y coordinate
+            targetPosition.y = startPosition.y;
+
+            // Set target rotation to zero for X and Z
+            Vector3 startRotation = transform.rotation.eulerAngles;
+            Vector3 levelRotation = new Vector3(0f, startRotation.y, 0f);
+
+            float elapsedTime = 0f;
+
+            while (elapsedTime < movementDuration)
+            {
+                float t = elapsedTime / movementDuration;
+                float curveValue = movementCurve.Evaluate(t);
+
+                // Move
+                Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, curveValue);
+                transform.position = newPosition;
+
+                // Rotate
+                Vector3 newRotation = Vector3.Lerp(startRotation, levelRotation, curveValue);
+                transform.rotation = Quaternion.Euler(newRotation);
+
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+
+            // Ensure we end up exactly at the target position and rotation
+            transform.position = targetPosition;
+            transform.rotation = Quaternion.Euler(levelRotation);
+
+            Debug.Log("RingPortalStormEvent: Finished moving to next position");
+        }
+
+        public void OnPortalOpenAnimationFinished()
+        {
+            Debug.Log("RingPortalStormEvent: Portal open animation finished");
+            animator.SetBool("isPortalOpenFinished", true);
+            isPortalOpenAnimationFinished = true;
+        }
+        public void OnPortalCloseAnimationFinished()
+        {
+            Debug.Log("RingPortalStormEvent: Portal close animation finished");
+            animator.SetBool("isPortalCloseFinished", true);
+            isPortalCloseAnimationFinished = true;
+        }
+    }
 }
+

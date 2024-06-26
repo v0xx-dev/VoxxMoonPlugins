@@ -3,7 +3,7 @@ using HarmonyLib;
 using Unity.Netcode;
 using UnityEngine;
 
-namespace ArcadiaMoonPlugin.Patches
+namespace VoxxMapHelperPlugin.Patches
 {
     [HarmonyPatch]
     internal class PlayerControllerBHeatStrokePatch
@@ -21,6 +21,7 @@ namespace ArcadiaMoonPlugin.Patches
             PlayerControllerBHeatStrokePatch.prevSprintMeter = __instance.sprintMeter;
         }
 
+        /*
         [HarmonyPatch(typeof(PlayerControllerB), "Update")]
         [HarmonyPostfix]
         [HarmonyPriority(Priority.Low)]
@@ -51,6 +52,7 @@ namespace ArcadiaMoonPlugin.Patches
                 return;
             PlayerControllerBHeatStrokePatch.prevSprintMeter = __instance.sprintMeter;
         }
+        */
 
         [HarmonyPatch(typeof(PlayerControllerB), "LateUpdate")]
         [HarmonyPostfix]
