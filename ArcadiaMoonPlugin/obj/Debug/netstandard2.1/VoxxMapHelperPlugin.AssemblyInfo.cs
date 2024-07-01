@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("A helper lib for Voxx moons")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fe795d19ff63a21b0b5b415981e553c41b564603")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0be950a62c46c3f2acf9612a3677075f6bad8122")]
 [assembly: System.Reflection.AssemblyProductAttribute("VoxxMapHelperPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("VoxxMapHelperPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

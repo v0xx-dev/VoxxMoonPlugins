@@ -5,14 +5,11 @@ using Unity.Netcode;
 using UnityEngine.AI;
 using UnityEngine.Rendering;
 using HarmonyLib;
-using VoxxMapHelperPlugin.Patches;
 using GameNetcodeStuff;
 using System.Linq;
 using System.Collections;
-using UnityEditor.VersionControl;
 using BepInEx.Configuration;
-using UnityEngine.PlayerLoop;
-using VoxxMapHelperPlugin;
+using System;
 
 namespace VoxxMapHelperPlugin
 {
@@ -255,7 +252,6 @@ namespace VoxxMapHelperPlugin
         }
     }
 
-
     public class EnemySpawner : MonoBehaviour
     {
         public string enemyName = "RadMech";
@@ -390,14 +386,15 @@ namespace VoxxMapHelperPlugin
         public List<float> deliveryTimes = new List<float>();
 
 
-        [SerializeField] private GameObject shipmentPositionsObject; // Assign this in the inspector
+        [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
-        [SerializeField] private float shipmentFallDuration = 15f;
-        [SerializeField] private float cooldownDuration = 30f;
+        [SerializeField] private float shipmentFallDuration = 15f; //Time to wait before disabling physics on dropped objects
+        [SerializeField] private float cooldownDuration = 5f;
         [SerializeField] private float movementDuration = 30f; // Duration of movement between positions
         [SerializeField] private AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1); // For smooth movement
         [SerializeField] private float maxTiltAngle = 25f; // Maximum tilt angle in degrees
+        [SerializeField] private float tiltChangeDuration = 30f;
 
 
         private Animator animator;
@@ -416,11 +413,16 @@ namespace VoxxMapHelperPlugin
         {
             Debug.Log("RingPortalStormEvent: Start method called");
             animator = GetComponent<Animator>();
+            animator.SetBool("isPortalActive", false);
             animator.SetBool("isPortalOpenFinished", false);
             animator.SetBool("isPortalCloseFinished", false);
             seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
             InitializeShipments();
             InitializeShipmentPositions();
+            if (deliveryTimes.Count != shipments.Count || deliveryTimes.Count != shipmentPositions.Count)
+            {
+                Debug.LogError("RingPortalStormEvent: Mismatch in number of shipments, delivery locations and times!");
+            }
         }
 
         private void Update()
@@ -486,7 +488,7 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Waiting for portal open animation to finish");
             yield return new WaitUntil(() => isPortalOpenAnimationFinished);
             Debug.Log("RingPortalStormEvent: Portal open animation finished");
-
+            yield return StartCoroutine(DecreaseRotationSpeed());
             Debug.Log("RingPortalStormEvent: Spawning and dropping shipment");
             yield return StartCoroutine(SpawnAndDropShipment());
 
@@ -498,11 +500,10 @@ namespace VoxxMapHelperPlugin
             yield return new WaitUntil(() => isPortalCloseAnimationFinished);
             Debug.Log("RingPortalStormEvent: Portal close animation finished");
 
-            Debug.Log("RingPortalStormEvent: Decreasing rotation speed");
-            yield return StartCoroutine(DecreaseRotationSpeed());
 
             Debug.Log($"RingPortalStormEvent: Preparing for next delivery. Current index: {currentShipmentIndex}");
             currentShipmentIndex++;
+            yield return StartCoroutine(SetRandomTilt());
             yield return new WaitForSeconds(cooldownDuration);
 
             Debug.Log("RingPortalStormEvent: Delivery sequence completed");
@@ -533,6 +534,26 @@ namespace VoxxMapHelperPlugin
         {
             Debug.Log("RingPortalStormEvent: Starting to decrease rotation speed");
 
+            float elapsedTime = 0f;
+
+            while (elapsedTime < (rotationSpeedChangeDuration*0.2f))
+            {
+                float t = elapsedTime / (rotationSpeedChangeDuration*0.2f);
+                float outerSpeed = Mathf.Lerp(maxRotationSpeed, 1f, t);
+                float innerSpeed = Mathf.Lerp(maxRotationSpeed * 0.75f, 0.5f, t);
+
+                animator.SetFloat("RotSpeedOuter", outerSpeed);
+                animator.SetFloat("RotSpeedInner", innerSpeed);
+
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        private IEnumerator SetRandomTilt()
+        {
+            Debug.Log("RingPortalStormEvent: tilting the station");
+
             // Choose random tilt angles
             float targetTiltX = (float)seededRandom.NextDouble() * maxTiltAngle;
             float targetTiltZ = (float)seededRandom.NextDouble() * maxTiltAngle;
@@ -541,14 +562,9 @@ namespace VoxxMapHelperPlugin
             float elapsedTime = 0f;
             Vector3 startRotation = transform.rotation.eulerAngles;
 
-            while (elapsedTime < rotationSpeedChangeDuration)
+            while (elapsedTime < tiltChangeDuration)
             {
-                float t = elapsedTime / rotationSpeedChangeDuration;
-                float outerSpeed = Mathf.Lerp(maxRotationSpeed, 1f, t);
-                float innerSpeed = Mathf.Lerp(maxRotationSpeed * 0.75f, 0.5f, t);
-
-                animator.SetFloat("RotSpeedOuter", outerSpeed);
-                animator.SetFloat("RotSpeedInner", innerSpeed);
+                float t = elapsedTime / tiltChangeDuration;
 
                 // Gradually change rotation
                 Vector3 newRotation = Vector3.Lerp(startRotation, targetRotation, t);
@@ -561,26 +577,32 @@ namespace VoxxMapHelperPlugin
 
         private IEnumerator SpawnAndDropShipment()
         {
+            List<GameObject> settledObjects = new List<GameObject>();
+            Action<GameObject> onObjectSettled = (obj) =>
+            {
+                settledObjects.Add(obj);
+            };
+
+            ShipmentCollisionHandler.OnObjectSettled += onObjectSettled;
+
             Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex % shipments.Count}");
             GameObject shipment = shipments[currentShipmentIndex % shipments.Count];
+            Transform[] childObjects = shipment.GetComponentsInChildren<Transform>(true);
             shipment.SetActive(true);
-            shipment.transform.position = transform.position;
-
-            Rigidbody rb = shipment.GetComponent<Rigidbody>();
-            if (rb == null)
-            {
-                rb = shipment.AddComponent<Rigidbody>();
-            }
-
-            rb.isKinematic = false;
-            rb.useGravity = true;
 
             yield return new WaitForSeconds(shipmentFallDuration);
 
-            rb.isKinematic = true;
-            rb.useGravity = false;
+            // Wait until all objects have settled
+            yield return new WaitUntil(() => settledObjects.Count == childObjects.Length - 1); // -1 to exclude the parent object itself
+
+            foreach (GameObject obj in settledObjects)
+            {
+                obj.transform.SetParent(shipmentPositionsObject.transform);
+            }
 
             Debug.Log("RingPortalStormEvent: Shipment dropped");
+
+            ShipmentCollisionHandler.OnObjectSettled -= onObjectSettled; // Unsubscribe to prevent memory leaks
         }
 
         private IEnumerator MoveToNextPosition()
@@ -634,6 +656,76 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Portal close animation finished");
             animator.SetBool("isPortalCloseFinished", true);
             isPortalCloseAnimationFinished = true;
+        }
+    }
+
+    public class ShipmentCollisionHandler : MonoBehaviour
+    {
+        public static event Action<GameObject> OnObjectSettled;
+        private bool hasCollided = false;
+        private Rigidbody rb;
+
+        private void Start()
+        {
+            rb = GetComponent<Rigidbody>();
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
+            {
+                hasCollided = true;
+                ParticleSystem smokeExplosion = GetComponent<ParticleSystem>();
+                smokeExplosion?.Play();
+                StartCoroutine(CheckIfSettled());
+            }
+        }
+
+        private IEnumerator CheckIfSettled()
+        {
+            yield return new WaitForSeconds(0.5f); // Wait for a short delay before starting to check
+
+            while (rb.velocity.magnitude > 0.01f)
+            {
+                yield return new WaitForSeconds(0.1f); // Check every 0.1 seconds
+            }
+
+            rb.useGravity = false;
+            rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+            this.enabled = false;
+            OnObjectSettled?.Invoke(gameObject);
+        }
+    }
+
+
+    internal class ToxicFumesInteract : NetworkBehaviour
+    {
+        public float damageTime = 5f; // Cooldown before fumes start to damage the player
+        private float damageTimer = 0f;
+        public int damageAmount = 3;
+
+        private void OnTriggerStay(Collider other)
+        {
+            if (other.CompareTag("Player"))
+            {
+                PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
+
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
+                {
+                    damageTimer += Time.deltaTime;
+                    playerController.drunknessInertia = Mathf.Clamp(playerController.drunknessInertia + Time.deltaTime / 1.5f * playerController.drunknessSpeed, 0.1f, 10f);
+                    playerController.increasingDrunknessThisFrame = true;
+                    if (damageTimer >= damageTime)
+                    {
+                        if (IsOwner)
+                        {
+                            GameNetworkManager.Instance.localPlayerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+                            damageTimer = 0;
+                        }
+                    }
+                }
+            }
         }
     }
 }
