@@ -389,7 +389,6 @@ namespace VoxxMapHelperPlugin
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
-        [SerializeField] private float shipmentFallDuration = 15f; //Time to wait before disabling physics on dropped objects
         [SerializeField] private float cooldownDuration = 5f;
         [SerializeField] private float movementDuration = 30f; // Duration of movement between positions
         [SerializeField] private AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1); // For smooth movement
@@ -413,9 +412,6 @@ namespace VoxxMapHelperPlugin
         {
             Debug.Log("RingPortalStormEvent: Start method called");
             animator = GetComponent<Animator>();
-            animator.SetBool("isPortalActive", false);
-            animator.SetBool("isPortalOpenFinished", false);
-            animator.SetBool("isPortalCloseFinished", false);
             seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
             InitializeShipments();
             InitializeShipmentPositions();
@@ -433,6 +429,12 @@ namespace VoxxMapHelperPlugin
             {
                 Debug.Log($"RingPortalStormEvent: Starting delivery sequence for shipment {currentShipmentIndex}");
                 StartCoroutine(PerformDeliverySequence());
+            }
+
+            if (currentShipmentIndex >= deliveryTimes.Count)
+            {
+                Debug.Log("RingPortalStormEvent: All shipments delivered, disabling station");
+                this.enabled = false;
             }
         }
 
@@ -470,6 +472,12 @@ namespace VoxxMapHelperPlugin
 
         private IEnumerator PerformDeliverySequence()
         {
+            animator.SetBool("isPortalActive", false);
+            animator.SetBool("isPortalOpenFinished", false);
+            animator.SetBool("isPortalCloseFinished", false);
+            isPortalOpenAnimationFinished = false;
+            isPortalCloseAnimationFinished = false;
+
             Debug.Log("RingPortalStormEvent: Starting delivery sequence");
             isDelivering = true;
             // Move to next position
@@ -489,9 +497,12 @@ namespace VoxxMapHelperPlugin
             yield return new WaitUntil(() => isPortalOpenAnimationFinished);
             Debug.Log("RingPortalStormEvent: Portal open animation finished");
             yield return StartCoroutine(DecreaseRotationSpeed());
+
+            yield return new WaitForSeconds(cooldownDuration);
             Debug.Log("RingPortalStormEvent: Spawning and dropping shipment");
             yield return StartCoroutine(SpawnAndDropShipment());
 
+            yield return new WaitForSeconds(cooldownDuration);
             Debug.Log("RingPortalStormEvent: Closing portal");
             animator.SetBool("isPortalActive", false);
             animator.SetBool("isPortalCloseFinished", false);
@@ -500,11 +511,9 @@ namespace VoxxMapHelperPlugin
             yield return new WaitUntil(() => isPortalCloseAnimationFinished);
             Debug.Log("RingPortalStormEvent: Portal close animation finished");
 
-
             Debug.Log($"RingPortalStormEvent: Preparing for next delivery. Current index: {currentShipmentIndex}");
             currentShipmentIndex++;
             yield return StartCoroutine(SetRandomTilt());
-            yield return new WaitForSeconds(cooldownDuration);
 
             Debug.Log("RingPortalStormEvent: Delivery sequence completed");
             isDelivering = false;
@@ -590,8 +599,6 @@ namespace VoxxMapHelperPlugin
             Transform[] childObjects = shipment.GetComponentsInChildren<Transform>(true);
             shipment.SetActive(true);
 
-            yield return new WaitForSeconds(shipmentFallDuration);
-
             // Wait until all objects have settled
             yield return new WaitUntil(() => settledObjects.Count == childObjects.Length - 1); // -1 to exclude the parent object itself
 
@@ -663,6 +670,95 @@ namespace VoxxMapHelperPlugin
     {
         public static event Action<GameObject> OnObjectSettled;
         private bool hasCollided = false;
+        private MeshCollider meshCollider;
+        private Rigidbody rb;
+        private KillPlayer killPlayerScript;
+        private AudioSource impactSound;
+        private NavMeshObstacle navMeshObstacle;
+
+        [SerializeField] private float settlementThreshold = 0.01f;
+        [SerializeField] private float initialCheckDelay = 0.5f;
+        [SerializeField] private float checkInterval = 0.1f;
+
+        private void Start()
+        {
+            rb = GetComponent<Rigidbody>();
+            killPlayerScript = GetComponent<KillPlayer>();
+            impactSound = GetComponent<AudioSource>();
+            meshCollider = GetComponent<MeshCollider>();
+            navMeshObstacle = GetComponent<NavMeshObstacle>();
+            if (navMeshObstacle != null)
+            {
+                navMeshObstacle.carving = false;
+            }
+            if (meshCollider != null)
+            {
+                meshCollider.convex = true;
+            }
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
+            {
+                hasCollided = true;
+
+                // Play impact sound
+                impactSound?.Play();
+
+                // Play particle effect
+                ParticleSystem smokeExplosion = GetComponent<ParticleSystem>();
+                smokeExplosion?.Play();
+
+                StartCoroutine(CheckIfSettled());
+            }
+        }
+
+        private IEnumerator CheckIfSettled()
+        {
+            yield return new WaitForSeconds(initialCheckDelay);
+
+            while (rb.velocity.magnitude > settlementThreshold)
+            {
+                yield return new WaitForSeconds(checkInterval);
+            }
+
+            // Object has settled
+            rb.useGravity = false;
+            rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+
+            // Disable kill script
+            if (killPlayerScript != null)
+            {
+                killPlayerScript.enabled = false;
+            }
+
+            //Switch to a proper mesh collider
+            if (meshCollider != null)
+            {
+                meshCollider.convex = false;
+            }
+
+            //Change NavMesh
+            if (navMeshObstacle != null)
+            {
+                navMeshObstacle.carving = true;
+            }
+
+            OnObjectSettled?.Invoke(gameObject);
+
+            // Disable this script
+            this.enabled = false;
+        }
+    }
+
+    public class KillPlayer : MonoBehaviour
+    {
+        [SerializeField] private float killVelocityThreshold = 0f;
+        private CauseOfDeath causeOfDeath = CauseOfDeath.Crushing;
+        private int deathAnimation = 0;
+
         private Rigidbody rb;
 
         private void Start()
@@ -672,34 +768,25 @@ namespace VoxxMapHelperPlugin
 
         private void OnCollisionEnter(Collision collision)
         {
-            if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
+            if (collision.gameObject.CompareTag("Player"))
             {
-                hasCollided = true;
-                ParticleSystem smokeExplosion = GetComponent<ParticleSystem>();
-                smokeExplosion?.Play();
-                StartCoroutine(CheckIfSettled());
+                PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
+
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
+                {
+                    if (rb.velocity.magnitude > killVelocityThreshold)
+                    {
+                        playerController.KillPlayer(bodyVelocity: rb.velocity, spawnBody: true,
+                                                    causeOfDeath: causeOfDeath, deathAnimation: deathAnimation);
+                    }
+                }
             }
         }
 
-        private IEnumerator CheckIfSettled()
-        {
-            yield return new WaitForSeconds(0.5f); // Wait for a short delay before starting to check
-
-            while (rb.velocity.magnitude > 0.01f)
-            {
-                yield return new WaitForSeconds(0.1f); // Check every 0.1 seconds
-            }
-
-            rb.useGravity = false;
-            rb.isKinematic = true;
-            rb.velocity = Vector3.zero;
-            this.enabled = false;
-            OnObjectSettled?.Invoke(gameObject);
-        }
     }
 
 
-    internal class ToxicFumesInteract : NetworkBehaviour
+    internal class ToxicFumesInteract : MonoBehaviour
     {
         public float damageTime = 5f; // Cooldown before fumes start to damage the player
         private float damageTimer = 0f;
@@ -718,11 +805,8 @@ namespace VoxxMapHelperPlugin
                     playerController.increasingDrunknessThisFrame = true;
                     if (damageTimer >= damageTime)
                     {
-                        if (IsOwner)
-                        {
-                            GameNetworkManager.Instance.localPlayerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
-                            damageTimer = 0;
-                        }
+                        playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+                        damageTimer = 0;
                     }
                 }
             }
