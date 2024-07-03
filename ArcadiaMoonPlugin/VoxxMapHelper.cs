@@ -394,8 +394,13 @@ namespace VoxxMapHelperPlugin
         [SerializeField] private AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1); // For smooth movement
         [SerializeField] private float maxTiltAngle = 25f; // Maximum tilt angle in degrees
         [SerializeField] private float tiltChangeDuration = 30f;
+        [SerializeField] private AudioClip[] startMovingSounds;
+        [SerializeField] private AudioClip[] ringMovementSounds;
+        [SerializeField] private AudioClip startSpinningSound;
+        [SerializeField] private float fadeOutDuration = 1f;
 
-
+        private AudioSource audioSource;
+        private Coroutine soundCoroutine;
         private Animator animator;
         private Vector3 targetRotation;
         private System.Random seededRandom;
@@ -418,6 +423,11 @@ namespace VoxxMapHelperPlugin
             if (deliveryTimes.Count != shipments.Count || deliveryTimes.Count != shipmentPositions.Count)
             {
                 Debug.LogError("RingPortalStormEvent: Mismatch in number of shipments, delivery locations and times!");
+            }
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
             }
         }
 
@@ -470,19 +480,105 @@ namespace VoxxMapHelperPlugin
             Debug.Log($"Total shipment positions: {shipmentPositions.Count}");
         }
 
+        private void PlayMovementSounds()
+        {
+            if (soundCoroutine != null)
+            {
+                StopCoroutine(soundCoroutine);
+            }
+            soundCoroutine = StartCoroutine(MovementSoundSequence());
+        }
+
+        private IEnumerator MovementSoundSequence()
+        {
+            // Play random start moving sound
+            if (startMovingSounds.Length > 0)
+            {
+                AudioClip randomStartSound = startMovingSounds[seededRandom.Next(startMovingSounds.Length)];
+                audioSource.PlayOneShot(randomStartSound);
+                yield return new WaitForSeconds(randomStartSound.length);
+            }
+
+            // Start looping movement sounds
+            while (true)
+            {
+                if (ringMovementSounds.Length > 0)
+                {
+                    AudioClip randomClip = ringMovementSounds[seededRandom.Next(ringMovementSounds.Length)];
+                    audioSource.clip = randomClip;
+                    audioSource.Play();
+                    yield return new WaitForSeconds(randomClip.length);
+                }
+                else
+                {
+                    yield return null;
+                }
+            }
+        }
+
+        private void StopMovementSounds()
+        {
+            if (soundCoroutine != null)
+            {
+                StopCoroutine(soundCoroutine);
+                soundCoroutine = null;
+            }
+            StartCoroutine(FadeOutSound());
+
+        }
+
+        private IEnumerator FadeOutSound()
+        {
+            float startVolume = audioSource.volume;
+            float deltaVolume = startVolume * Time.deltaTime / fadeOutDuration;
+
+            while (audioSource.volume > 0)
+            {
+                audioSource.volume -= deltaVolume;
+                yield return null;
+            }
+
+            audioSource.Stop();
+            audioSource.volume = startVolume;
+        }
+
+        private void PlayStartSpinningSound()
+        {
+            if (startSpinningSound != null)
+            {
+                audioSource.Stop(); // Ensure any previous sounds are stopped
+                audioSource.clip = startSpinningSound;
+                audioSource.Play();
+            }
+        }
+
         private IEnumerator PerformDeliverySequence()
         {
+
+            Debug.Log("RingPortalStormEvent: Starting delivery sequence");
+            isDelivering = true;
+
             animator.SetBool("isPortalActive", false);
             animator.SetBool("isPortalOpenFinished", false);
             animator.SetBool("isPortalCloseFinished", false);
             isPortalOpenAnimationFinished = false;
             isPortalCloseAnimationFinished = false;
 
-            Debug.Log("RingPortalStormEvent: Starting delivery sequence");
-            isDelivering = true;
+            // Start playing movement sounds immediately
+            PlayMovementSounds();
+
             // Move to next position
             Debug.Log("RingPortalStormEvent: Moving to next position");
             yield return StartCoroutine(MoveToNextPosition());
+
+            // Stop movement sounds with fade out
+            StopMovementSounds();
+
+            // Wait for fade out to complete
+            yield return new WaitForSeconds(fadeOutDuration + 0.5f);
+
+            // Play start spinning sound
+            PlayStartSpinningSound();
 
             // Increase rotation speed
             Debug.Log("RingPortalStormEvent: Increasing rotation speed");
@@ -517,6 +613,48 @@ namespace VoxxMapHelperPlugin
 
             Debug.Log("RingPortalStormEvent: Delivery sequence completed");
             isDelivering = false;
+        }
+
+        private IEnumerator MoveToNextPosition()
+        {
+            Debug.Log("RingPortalStormEvent: Starting movement to next position");
+            int nextPositionIndex = (currentShipmentIndex + 1) % shipmentPositions.Count;
+            Vector3 startPosition = transform.position;
+            Vector3 targetPosition = shipmentPositions[nextPositionIndex].position;
+
+            // Preserve the current Y coordinate
+            targetPosition.y = startPosition.y;
+
+            // Set target rotation to zero for X and Z
+            Vector3 startRotation = transform.rotation.eulerAngles;
+            Vector3 levelRotation = new Vector3(0f, startRotation.y, 0f);
+
+            float elapsedTime = 0f;
+
+            while (elapsedTime < movementDuration)
+            {
+                float t = elapsedTime / movementDuration;
+                float curveValue = movementCurve.Evaluate(t);
+
+                // Move
+                Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, curveValue);
+                transform.position = newPosition;
+
+                // Rotate
+                Vector3 newRotation = Vector3.Lerp(startRotation, levelRotation, curveValue);
+                transform.rotation = Quaternion.Euler(newRotation);
+
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
+
+            // Ensure we end up exactly at the target position and rotation
+            transform.position = targetPosition;
+            transform.rotation = Quaternion.Euler(levelRotation);
+
+            Debug.Log("RingPortalStormEvent: Finished moving to next position");
+
+            // Note: We don't stop the movement sounds here anymore, as it's now handled in PerformDeliverySequence
         }
 
         private IEnumerator IncreaseRotationSpeed()
@@ -610,46 +748,6 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Shipment dropped");
 
             ShipmentCollisionHandler.OnObjectSettled -= onObjectSettled; // Unsubscribe to prevent memory leaks
-        }
-
-        private IEnumerator MoveToNextPosition()
-        {
-            Debug.Log("RingPortalStormEvent: Starting movement to next position");
-            int nextPositionIndex = (currentShipmentIndex + 1) % shipmentPositions.Count;
-            Vector3 startPosition = transform.position;
-            Vector3 targetPosition = shipmentPositions[nextPositionIndex].position;
-
-            // Preserve the current Y coordinate
-            targetPosition.y = startPosition.y;
-
-            // Set target rotation to zero for X and Z
-            Vector3 startRotation = transform.rotation.eulerAngles;
-            Vector3 levelRotation = new Vector3(0f, startRotation.y, 0f);
-
-            float elapsedTime = 0f;
-
-            while (elapsedTime < movementDuration)
-            {
-                float t = elapsedTime / movementDuration;
-                float curveValue = movementCurve.Evaluate(t);
-
-                // Move
-                Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, curveValue);
-                transform.position = newPosition;
-
-                // Rotate
-                Vector3 newRotation = Vector3.Lerp(startRotation, levelRotation, curveValue);
-                transform.rotation = Quaternion.Euler(newRotation);
-
-                elapsedTime += Time.deltaTime;
-                yield return null;
-            }
-
-            // Ensure we end up exactly at the target position and rotation
-            transform.position = targetPosition;
-            transform.rotation = Quaternion.Euler(levelRotation);
-
-            Debug.Log("RingPortalStormEvent: Finished moving to next position");
         }
 
         public void OnPortalOpenAnimationFinished()
