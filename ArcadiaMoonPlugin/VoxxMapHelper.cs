@@ -381,10 +381,23 @@ namespace VoxxMapHelperPlugin
         }
     }
 
+    public static class ListShuffler
+    {
+        public static void ShuffleInPlace<T>(this IList<T> list, System.Random rnd)
+        {
+            int n = list.Count;
+            while (n > 1)
+            {
+                n--;
+                int k = rnd.Next(n + 1);
+                (list[k], list[n]) = (list[n], list[k]);
+            }
+        }
+    }
+
     public class RingPortalStormEvent : MonoBehaviour
     {
         public List<float> deliveryTimes = new List<float>();
-
 
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
         [SerializeField] private float maxRotationSpeed = 5f;
@@ -420,6 +433,11 @@ namespace VoxxMapHelperPlugin
             seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
             InitializeShipments();
             InitializeShipmentPositions();
+
+            // Shuffle the shipment positions and delivery times
+            shipments.ShuffleInPlace(seededRandom);
+            shipmentPositions.ShuffleInPlace(seededRandom);
+
             if (deliveryTimes.Count != shipments.Count || deliveryTimes.Count != shipmentPositions.Count)
             {
                 Debug.LogError("RingPortalStormEvent: Mismatch in number of shipments, delivery locations and times!");
@@ -546,7 +564,6 @@ namespace VoxxMapHelperPlugin
         {
             if (startSpinningSound != null)
             {
-                audioSource.Stop(); // Ensure any previous sounds are stopped
                 audioSource.clip = startSpinningSound;
                 audioSource.Play();
             }
@@ -654,7 +671,6 @@ namespace VoxxMapHelperPlugin
 
             Debug.Log("RingPortalStormEvent: Finished moving to next position");
 
-            // Note: We don't stop the movement sounds here anymore, as it's now handled in PerformDeliverySequence
         }
 
         private IEnumerator IncreaseRotationSpeed()
