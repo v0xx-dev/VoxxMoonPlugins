@@ -10,6 +10,7 @@ using System.Linq;
 using System.Collections;
 using BepInEx.Configuration;
 using System;
+using UnityEngine.XR;
 
 namespace VoxxMapHelperPlugin
 {
@@ -383,14 +384,21 @@ namespace VoxxMapHelperPlugin
 
     public static class ListShuffler
     {
-        public static void ShuffleInPlace<T>(this IList<T> list, System.Random rnd)
+        public static void ShuffleInSync<T1, T2>(List<T1> list1, List<T2> list2, System.Random random)
         {
-            int n = list.Count;
-            while (n > 1)
+            if (list1.Count != list2.Count)
             {
-                n--;
-                int k = rnd.Next(n + 1);
-                (list[k], list[n]) = (list[n], list[k]);
+                throw new ArgumentException("Lists must have the same length.");
+            }
+
+            int n = list1.Count;
+            for (int i = n - 1; i > 0; i--)
+            {
+                int j = random.Next(0, i + 1);
+
+                // Swap elements in both lists
+                (list1[i], list1[j]) = (list1[j], list1[i]);
+                (list2[i], list2[j]) = (list2[j], list2[i]);
             }
         }
     }
@@ -400,6 +408,7 @@ namespace VoxxMapHelperPlugin
         public List<float> deliveryTimes = new List<float>();
 
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
+        [SerializeField] private GameObject shipmentsContainerObject; // Assign in the inspector, contains shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
         [SerializeField] private float cooldownDuration = 5f;
@@ -435,8 +444,7 @@ namespace VoxxMapHelperPlugin
             InitializeShipmentPositions();
 
             // Shuffle the shipment positions and delivery times
-            shipments.ShuffleInPlace(seededRandom);
-            shipmentPositions.ShuffleInPlace(seededRandom);
+            //ListShuffler.ShuffleInSync(shipments, shipmentPositions, seededRandom);
 
             if (deliveryTimes.Count != shipments.Count || deliveryTimes.Count != shipmentPositions.Count)
             {
@@ -469,8 +477,13 @@ namespace VoxxMapHelperPlugin
         private void InitializeShipments()
         {
             Debug.Log("RingPortalStormEvent: Initializing shipments");
-            Transform shipmentsParent = transform.Find("Shipments");
-            foreach (Transform shipment in shipmentsParent)
+
+            if (shipmentsContainerObject == null)
+            {
+                Debug.LogError("RingPortalStormEvent: shipmentsContainerObject is not assigned in the inspector!");
+                return;
+            }
+            foreach (Transform shipment in shipmentsContainerObject.transform)
             {
                 shipments.Add(shipment.gameObject);
                 shipment.gameObject.SetActive(false);
@@ -750,6 +763,7 @@ namespace VoxxMapHelperPlugin
 
             Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex % shipments.Count}");
             GameObject shipment = shipments[currentShipmentIndex % shipments.Count];
+            shipment.transform.position = transform.position;
             Transform[] childObjects = shipment.GetComponentsInChildren<Transform>(true);
             shipment.SetActive(true);
 
@@ -840,7 +854,7 @@ namespace VoxxMapHelperPlugin
             // Object has settled
             rb.useGravity = false;
             rb.isKinematic = true;
-            rb.velocity = Vector3.zero;
+            //rb.velocity = Vector3.zero;
 
             // Disable kill script
             if (killPlayerScript != null)
