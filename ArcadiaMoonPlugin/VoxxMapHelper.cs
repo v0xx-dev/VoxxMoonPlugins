@@ -422,6 +422,7 @@ namespace VoxxMapHelperPlugin
         }
     }
 
+
     public class RingPortalStormEvent : NetworkBehaviour
     {
         public List<float> deliveryTimes = new List<float>();
@@ -464,7 +465,7 @@ namespace VoxxMapHelperPlugin
             InitializeShipmentPositions();
 
             // Shuffle the shipment positions and delivery times
-            //ListShuffler.ShuffleInSync(shipments, shipmentPositions, seededRandom);
+            ShuffleInSync(shipmentPositions, shipments, seededRandom);
 
             if (shipmentPositions.Count != shipments.Count)
             {
@@ -474,6 +475,24 @@ namespace VoxxMapHelperPlugin
             if (audioSource == null)
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+
+        private void ShuffleInSync<T1, T2>(IList<T1> list1, IList<T2> list2, System.Random random)
+        {
+            if (list1.Count != list2.Count)
+            {
+                throw new System.ArgumentException("Lists must have the same length.");
+            }
+
+            int n = list1.Count;
+            for (int i = n - 1; i > 0; i--)
+            {
+                int j = random.Next(0, i + 1);
+
+                // Swap elements in both lists
+                (list1[i], list1[j]) = (list1[j], list1[i]);
+                (list2[i], list2[j]) = (list2[j], list2[i]);
             }
         }
 
@@ -676,7 +695,7 @@ namespace VoxxMapHelperPlugin
 
         private IEnumerator MoveToNextPosition()
         {
-            int nextPositionIndex = (currentShipmentIndex.Value + 1) % shipmentPositions.Count;
+            int nextPositionIndex = currentShipmentIndex.Value % shipmentPositions.Count;
             Vector3 startPosition = transform.position;
             Vector3 targetPosition = shipmentPositions[nextPositionIndex].position;
 
