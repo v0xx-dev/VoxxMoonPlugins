@@ -11,6 +11,7 @@ using System.Collections;
 using BepInEx.Configuration;
 using System;
 using UnityEngine.XR;
+using System.Reflection;
 
 namespace VoxxMapHelperPlugin
 {
@@ -23,6 +24,23 @@ namespace VoxxMapHelperPlugin
         public static ConfigEntry<bool> ForceSpawnFlowerman { get; private set; }
         public static ConfigEntry<bool> ForceSpawnBaboon { get; private set; }
         public static ConfigEntry<bool> ForceSpawnRadMech { get; private set; }
+
+        private static void NetcodePatcher()
+        {
+            var types = Assembly.GetExecutingAssembly().GetTypes();
+            foreach (var type in types)
+            {
+                var methods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                foreach (var method in methods)
+                {
+                    var attributes = method.GetCustomAttributes(typeof(RuntimeInitializeOnLoadMethodAttribute), false);
+                    if (attributes.Length > 0)
+                    {
+                        method.Invoke(null, null);
+                    }
+                }
+            }
+        }
 
         private void Awake()
         {
@@ -40,6 +58,7 @@ namespace VoxxMapHelperPlugin
             this.harmony = new Harmony(PluginInfo.PLUGIN_GUID);
             this.harmony.PatchAll();
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} patched PlayerControllerB!");
+            NetcodePatcher();
         }
 
     }
@@ -403,12 +422,11 @@ namespace VoxxMapHelperPlugin
         }
     }
 
-    public class RingPortalStormEvent : MonoBehaviour
+    public class RingPortalStormEvent : NetworkBehaviour
     {
         public List<float> deliveryTimes = new List<float>();
 
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
-        [SerializeField] private GameObject shipmentsContainerObject; // Assign in the inspector, contains shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
         [SerializeField] private float cooldownDuration = 5f;
@@ -428,11 +446,13 @@ namespace VoxxMapHelperPlugin
         private System.Random seededRandom;
         private List<GameObject> shipments = new List<GameObject>();
         private List<Transform> shipmentPositions = new List<Transform>();
-        private int currentShipmentIndex = 0;
         private float timer = 0f;
         private bool isPortalOpenAnimationFinished = false;
         private bool isPortalCloseAnimationFinished = false;
         private bool isDelivering = false;
+        private bool shipmentSettledOnClient = false;
+
+        private NetworkVariable<int> currentShipmentIndex = new NetworkVariable<int>(0);
 
 
         private void Start()
@@ -446,9 +466,9 @@ namespace VoxxMapHelperPlugin
             // Shuffle the shipment positions and delivery times
             //ListShuffler.ShuffleInSync(shipments, shipmentPositions, seededRandom);
 
-            if (deliveryTimes.Count != shipments.Count || deliveryTimes.Count != shipmentPositions.Count)
+            if (shipmentPositions.Count != shipments.Count)
             {
-                Debug.LogError("RingPortalStormEvent: Mismatch in number of shipments, delivery locations and times!");
+                Debug.LogError("RingPortalStormEvent: Mismatch in number of shipments and delivery locations!");
             }
             audioSource = GetComponent<AudioSource>();
             if (audioSource == null)
@@ -459,31 +479,33 @@ namespace VoxxMapHelperPlugin
 
         private void Update()
         {
-            timer += Time.deltaTime;
 
-            if (currentShipmentIndex < deliveryTimes.Count && timer >= deliveryTimes[currentShipmentIndex] && !isDelivering)
-            {
-                Debug.Log($"RingPortalStormEvent: Starting delivery sequence for shipment {currentShipmentIndex}");
-                StartCoroutine(PerformDeliverySequence());
-            }
-
-            if (currentShipmentIndex >= deliveryTimes.Count)
+            if (currentShipmentIndex.Value >= deliveryTimes.Count)
             {
                 Debug.Log("RingPortalStormEvent: All shipments delivered, disabling station");
                 this.enabled = false;
             }
+
+            if (!IsServer) return; // Only run on the server
+
+            timer += Time.deltaTime;
+            //float timer = TimeOfDay.Instance.normalizedTimeOfDay;
+
+            if (currentShipmentIndex.Value < deliveryTimes.Count && timer >= deliveryTimes[currentShipmentIndex.Value] && !isDelivering)
+            {
+                Debug.Log($"RingPortalStormEvent: Starting delivery sequence for shipment {currentShipmentIndex.Value}");
+                StartCoroutine(PerformDeliverySequence());
+            }
+
         }
 
         private void InitializeShipments()
         {
             Debug.Log("RingPortalStormEvent: Initializing shipments");
 
-            if (shipmentsContainerObject == null)
-            {
-                Debug.LogError("RingPortalStormEvent: shipmentsContainerObject is not assigned in the inspector!");
-                return;
-            }
-            foreach (Transform shipment in shipmentsContainerObject.transform)
+            Transform shipmentsParent = transform.Find("Shipments");
+
+            foreach (Transform shipment in shipmentsParent)
             {
                 shipments.Add(shipment.gameObject);
                 shipment.gameObject.SetActive(false);
@@ -511,7 +533,8 @@ namespace VoxxMapHelperPlugin
             Debug.Log($"Total shipment positions: {shipmentPositions.Count}");
         }
 
-        private void PlayMovementSounds()
+        [ClientRpc]
+        private void PlayMovementSoundsClientRpc()
         {
             if (soundCoroutine != null)
             {
@@ -546,8 +569,9 @@ namespace VoxxMapHelperPlugin
                 }
             }
         }
-
-        private void StopMovementSounds()
+        
+        [ClientRpc]
+        private void StopMovementSoundsClientRpc()
         {
             if (soundCoroutine != null)
             {
@@ -572,8 +596,9 @@ namespace VoxxMapHelperPlugin
             audioSource.Stop();
             audioSource.volume = startVolume;
         }
-
-        private void PlayStartSpinningSound()
+        
+        [ClientRpc]
+        private void PlayStartSpinningSoundClientRpc()
         {
             if (startSpinningSound != null)
             {
@@ -595,20 +620,20 @@ namespace VoxxMapHelperPlugin
             isPortalCloseAnimationFinished = false;
 
             // Start playing movement sounds immediately
-            PlayMovementSounds();
+            PlayMovementSoundsClientRpc();
 
             // Move to next position
             Debug.Log("RingPortalStormEvent: Moving to next position");
             yield return StartCoroutine(MoveToNextPosition());
 
             // Stop movement sounds with fade out
-            StopMovementSounds();
+            StopMovementSoundsClientRpc();
 
             // Wait for fade out to complete
             yield return new WaitForSeconds(fadeOutDuration + 0.5f);
 
             // Play start spinning sound
-            PlayStartSpinningSound();
+            PlayStartSpinningSoundClientRpc();
 
             // Increase rotation speed
             Debug.Log("RingPortalStormEvent: Increasing rotation speed");
@@ -622,13 +647,17 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Waiting for portal open animation to finish");
             yield return new WaitUntil(() => isPortalOpenAnimationFinished);
             Debug.Log("RingPortalStormEvent: Portal open animation finished");
+
             yield return StartCoroutine(DecreaseRotationSpeed());
 
             yield return new WaitForSeconds(cooldownDuration);
+
             Debug.Log("RingPortalStormEvent: Spawning and dropping shipment");
-            yield return StartCoroutine(SpawnAndDropShipment());
+            SpawnAndDropShipmentClientRpc();
+            yield return new WaitUntil(() => shipmentSettledOnClient);
 
             yield return new WaitForSeconds(cooldownDuration);
+
             Debug.Log("RingPortalStormEvent: Closing portal");
             animator.SetBool("isPortalActive", false);
             animator.SetBool("isPortalCloseFinished", false);
@@ -638,7 +667,7 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Portal close animation finished");
 
             Debug.Log($"RingPortalStormEvent: Preparing for next delivery. Current index: {currentShipmentIndex}");
-            currentShipmentIndex++;
+            currentShipmentIndex.Value++;
             yield return StartCoroutine(SetRandomTilt());
 
             Debug.Log("RingPortalStormEvent: Delivery sequence completed");
@@ -647,8 +676,7 @@ namespace VoxxMapHelperPlugin
 
         private IEnumerator MoveToNextPosition()
         {
-            Debug.Log("RingPortalStormEvent: Starting movement to next position");
-            int nextPositionIndex = (currentShipmentIndex + 1) % shipmentPositions.Count;
+            int nextPositionIndex = (currentShipmentIndex.Value + 1) % shipmentPositions.Count;
             Vector3 startPosition = transform.position;
             Vector3 targetPosition = shipmentPositions[nextPositionIndex].position;
 
@@ -685,7 +713,7 @@ namespace VoxxMapHelperPlugin
             Debug.Log("RingPortalStormEvent: Finished moving to next position");
 
         }
-
+        
         private IEnumerator IncreaseRotationSpeed()
         {
             Debug.Log("RingPortalStormEvent: Starting to increase rotation speed");
@@ -725,7 +753,7 @@ namespace VoxxMapHelperPlugin
                 yield return null;
             }
         }
-
+        
         private IEnumerator SetRandomTilt()
         {
             Debug.Log("RingPortalStormEvent: tilting the station");
@@ -751,6 +779,21 @@ namespace VoxxMapHelperPlugin
             }
         }
 
+        [ClientRpc]
+        private void SpawnAndDropShipmentClientRpc()
+        {
+            StartCoroutine(SpawnAndDropShipment());
+        }
+
+        [ClientRpc]
+        private void NotifyShipmentSettledClientRpc()
+        {
+            if (IsServer)
+            {
+                shipmentSettledOnClient = true;
+            }
+        }
+
         private IEnumerator SpawnAndDropShipment()
         {
             List<GameObject> settledObjects = new List<GameObject>();
@@ -761,9 +804,8 @@ namespace VoxxMapHelperPlugin
 
             ShipmentCollisionHandler.OnObjectSettled += onObjectSettled;
 
-            Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex % shipments.Count}");
-            GameObject shipment = shipments[currentShipmentIndex % shipments.Count];
-            shipment.transform.position = transform.position;
+            Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex.Value % shipments.Count}");
+            GameObject shipment = shipments[currentShipmentIndex.Value % shipments.Count];
             Transform[] childObjects = shipment.GetComponentsInChildren<Transform>(true);
             shipment.SetActive(true);
 
@@ -776,8 +818,8 @@ namespace VoxxMapHelperPlugin
             }
 
             Debug.Log("RingPortalStormEvent: Shipment dropped");
-
             ShipmentCollisionHandler.OnObjectSettled -= onObjectSettled; // Unsubscribe to prevent memory leaks
+            NotifyShipmentSettledClientRpc();
         }
 
         public void OnPortalOpenAnimationFinished()
@@ -912,7 +954,6 @@ namespace VoxxMapHelperPlugin
         }
 
     }
-
 
     internal class ToxicFumesInteract : MonoBehaviour
     {
