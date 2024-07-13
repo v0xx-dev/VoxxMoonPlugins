@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj": {}
+    "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj": {}
   },
   "projects": {
-    "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj": {
-      "version": "1.0.0",
+    "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj": {
+      "version": "1.3.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
-        "projectName": "VoxxMapHelperPlugin",
-        "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
+        "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
+        "projectName": "ArcadiaMoonPlugin",
+        "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
         "packagesPath": "C:\\Users\\ispar\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\ArcadiaPlugins\\ArcadiaMoonPlugin\\obj\\",
+        "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\ispar\\AppData\\Roaming\\NuGet\\NuGet.Config",
