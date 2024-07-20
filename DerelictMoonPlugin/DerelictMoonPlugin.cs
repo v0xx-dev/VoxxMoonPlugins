@@ -7,6 +7,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
 using System;
+using UnityEngine.Rendering.HighDefinition;
 
 namespace DerelictMoonPlugin
 {
@@ -70,6 +71,7 @@ namespace DerelictMoonPlugin
     {
         public List<float> deliveryTimes = new List<float>();
 
+        [SerializeField] private float maxStartTimeDelay = 120f;
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
@@ -91,6 +93,7 @@ namespace DerelictMoonPlugin
         private List<GameObject> shipments = new List<GameObject>();
         private List<Transform> shipmentPositions = new List<Transform>();
         private float timer = 0f;
+        private float timeDelay = 0f;
         private bool isPortalOpenAnimationFinished = false;
         private bool isPortalCloseAnimationFinished = false;
         private bool isDelivering = false;
@@ -104,6 +107,13 @@ namespace DerelictMoonPlugin
             Debug.Log("RingPortalStormEvent: Start method called");
             animator = GetComponent<Animator>();
             seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
+
+            timeDelay = (float)seededRandom.NextDouble() * maxStartTimeDelay;
+            for (int i = 0; i < deliveryTimes.Count; i++)
+            {
+                deliveryTimes[i] += timeDelay;
+            }
+
             InitializeShipments();
             InitializeShipmentPositions();
 
@@ -120,8 +130,6 @@ namespace DerelictMoonPlugin
                 audioSource = gameObject.AddComponent<AudioSource>();
             }
         }
-
-
 
         private void Update()
         {
@@ -605,31 +613,105 @@ namespace DerelictMoonPlugin
 
     }
 
-    internal class ToxicFumesInteract : MonoBehaviour
+    internal class ToxicFumes : MonoBehaviour
     {
-        [SerializeField] private float damageTime = 3f; // Cooldown before fumes start to damage the player
-        [SerializeField] private int damageAmount = 5;
-        [SerializeField] private float drunknessPower = 1.5f;
-        private float damageTimer = 0f;
+        [SerializeField] protected float damageTime = 3f;
+        [SerializeField] protected float drunknessPower = 1.5f;
+        [SerializeField] protected int damageAmount = 5;
 
-        private void OnTriggerStay(Collider other)
+        protected float damageTimer = 0f;
+
+        protected virtual void ApplyDamage(PlayerControllerB playerController)
+        {
+            playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+        }
+
+        internal void ApplyToxicEffect(Collider other)
         {
             if (other.CompareTag("Player"))
             {
                 PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
 
-                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController && !playerController.isInHangarShipRoom)
                 {
                     damageTimer += Time.deltaTime;
                     playerController.drunknessInertia = Mathf.Clamp(playerController.drunknessInertia + Time.deltaTime / drunknessPower * playerController.drunknessSpeed, 0.1f, 10f);
                     playerController.increasingDrunknessThisFrame = true;
                     if (damageTimer >= damageTime)
                     {
-                        playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+                        ApplyDamage(playerController);
                         damageTimer = 0;
                     }
                 }
             }
+        }
+
+        protected virtual void OnTriggerStay(Collider other)
+        {
+            ApplyToxicEffect(other);
+        }
+    }
+
+    internal class ToxicFogWeather : ToxicFumes
+    {
+        [SerializeField] private float damageProb = .25f;
+        private System.Random seededRandom;
+        private LocalVolumetricFog toxicVolumetricFog;
+        private bool isToxified = false;
+
+        private void Start()
+        {
+            seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
+            toxicVolumetricFog = GetComponent<LocalVolumetricFog>();
+        }
+
+        protected override void ApplyDamage(PlayerControllerB playerController)
+        {
+            if (seededRandom.NextDouble() < damageProb)
+            {
+                playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+            }
+        }
+        protected override void OnTriggerStay(Collider other)
+        {
+            if (isToxified)
+            {
+                ApplyToxicEffect(other);
+            }
+        }
+
+        private void ToxifyFog()
+        {
+            // Disable vanilla fog
+            TimeOfDay.Instance.foggyWeather.enabled = false;
+            // Enable toxic fog
+            toxicVolumetricFog.parameters.meanFreePath = (float)seededRandom.Next((int)TimeOfDay.Instance.currentWeatherVariable, (int)TimeOfDay.Instance.currentWeatherVariable2);
+            toxicVolumetricFog.enabled = true;
+            isToxified = true;
+        }
+
+        private void PurifyFog()
+        {
+            // Disable toxic fog
+            toxicVolumetricFog.enabled = false;
+            isToxified = false;
+        }
+
+        private void Update()
+        {
+            if (TimeOfDay.Instance.currentLevelWeather == LevelWeatherType.Foggy && !isToxified)
+            {
+                ToxifyFog();
+            }
+            else if (TimeOfDay.Instance.currentLevelWeather != LevelWeatherType.Foggy && isToxified)
+            {
+                PurifyFog();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            PurifyFog();
         }
     }
 }

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "7ZMCd+qtwx8=",
+  "dgSpecHash": "+DnbdbpNEu8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
+  "projectFilePath": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\ispar\\.nuget\\packages\\bepinex.analyzers\\1.0.8\\bepinex.analyzers.1.0.8.nupkg.sha512",
     "C:\\Users\\ispar\\.nuget\\packages\\bepinex.assemblypublicizer.msbuild\\0.4.2\\bepinex.assemblypublicizer.msbuild.0.4.2.nupkg.sha512",

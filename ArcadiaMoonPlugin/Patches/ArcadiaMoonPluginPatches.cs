@@ -9,7 +9,7 @@ namespace ArcadiaMoonPlugin.Patches
     internal class PlayerControllerBHeatStrokePatch
     {
         private static float prevSprintMeter;
-        private static float severityInfluenceMultiplier = 1f;
+        private static float severityInfluenceMultiplier = 1.25f;
         private static float timeToCool = 17f;
 
         [HarmonyPatch(typeof(PlayerControllerB), "Update")]
@@ -44,7 +44,7 @@ namespace ArcadiaMoonPlugin.Patches
 
             float severity = PlayerHeatManager.heatSeverity;
 
-            Debug.Log($"Severity: {severity}, inHeatZone: {PlayerHeatManager.isInHeatZone}, heatMultiplier {PlayerHeatManager.heatSeverityMultiplier}, isInside {__instance.isInsideFactory}");
+            //Debug.Log($"Severity: {severity}, inHeatZone: {PlayerHeatManager.isInHeatZone}, heatMultiplier {PlayerHeatManager.heatSeverityMultiplier}, isInside {__instance.isInsideFactory}");
 
             if (severity > 0)
             {

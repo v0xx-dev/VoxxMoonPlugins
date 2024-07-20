@@ -2739,11 +2739,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\DerelictMoonPlugin\\DerelictMoonPlugin.csproj",
+      "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\DerelictMoonPlugin\\DerelictMoonPlugin.csproj",
       "projectName": "DerelictMoonPlugin",
-      "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\DerelictMoonPlugin\\DerelictMoonPlugin.csproj",
+      "projectPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\DerelictMoonPlugin\\DerelictMoonPlugin.csproj",
       "packagesPath": "C:\\Users\\ispar\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\CSharp Plugins\\ArcadiaPlugins\\DerelictMoonPlugin\\obj\\",
+      "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\DerelictMoonPlugin\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\ispar\\AppData\\Roaming\\NuGet\\NuGet.Config",

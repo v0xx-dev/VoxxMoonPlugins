@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("A plugin for the LC Arcadia Moon mod")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.3.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.3.0+c0fb980a45496e76ead1d97542ac0154bc867e54")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.3.0+0af0d0dd8c6d01bdb61e0af8f83e1fc39e14713f")]
 [assembly: System.Reflection.AssemblyProductAttribute("ArcadiaMoonPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ArcadiaMoonPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.3.0.0")]

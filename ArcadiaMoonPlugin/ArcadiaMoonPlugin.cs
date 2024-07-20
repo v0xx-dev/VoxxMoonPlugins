@@ -22,23 +22,6 @@ namespace ArcadiaMoonPlugin
         public static ConfigEntry<bool> ForceSpawnBaboon { get; private set; }
         public static ConfigEntry<bool> ForceSpawnRadMech { get; private set; }
 
-        private static void NetcodePatcher()
-        {
-            var types = Assembly.GetExecutingAssembly().GetTypes();
-            foreach (var type in types)
-            {
-                var methods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
-                foreach (var method in methods)
-                {
-                    var attributes = method.GetCustomAttributes(typeof(RuntimeInitializeOnLoadMethodAttribute), false);
-                    if (attributes.Length > 0)
-                    {
-                        method.Invoke(null, null);
-                    }
-                }
-            }
-        }
-
         private void Awake()
         {
             instance = this;
@@ -55,7 +38,6 @@ namespace ArcadiaMoonPlugin
             this.harmony = new Harmony(PluginInfo.PLUGIN_GUID);
             this.harmony.PatchAll();
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} patched PlayerControllerB!");
-            NetcodePatcher();
         }
 
     }
@@ -87,7 +69,6 @@ namespace ArcadiaMoonPlugin
     {
         [SerializeField] private float timeInHeatZoneMax = 10f; // Time before maximum effects are applied
         [SerializeField] private Volume exhaustionFilter; // Filter for visual effects
-        private bool isHeatingLocalPlayer;
 
         public bool CheckConditionsForHeatingPause(PlayerControllerB playerController)
         {
@@ -136,7 +117,7 @@ namespace ArcadiaMoonPlugin
                 }
 
                 if (CheckConditionsForHeatingPause(playerController))
-                    PlayerHeatManager.heatSeverityMultiplier = .25f;
+                    PlayerHeatManager.heatSeverityMultiplier = .33f;
                 else
                     PlayerHeatManager.heatSeverityMultiplier = 1f;
 
@@ -202,12 +183,12 @@ namespace ArcadiaMoonPlugin
 
     public class EnemySpawner : MonoBehaviour
     {
-        public string enemyName = "RadMech";
+        [SerializeField] private string enemyName = "RadMech";
+        [SerializeField] private float timer = 0.5f; // Normalized time of day to start spawning enemies
 
         private EnemyType enemyType;
         private GameObject nestPrefab;
 
-        public float timer = 0.5f; // Normalized time of day to start spawning enemies
         private List<GameObject> spawnedNests = new List<GameObject>();
         private System.Random random = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
 
