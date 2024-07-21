@@ -12,6 +12,7 @@ using UnityEngine.Rendering.HighDefinition;
 using System.Net.NetworkInformation;
 using static UnityEditor.Progress;
 using static UnityEngine.ParticleSystem.PlaybackState;
+using UnityEditor.PackageManager;
 
 namespace DerelictMoonPlugin
 {
@@ -542,6 +543,7 @@ namespace DerelictMoonPlugin
 
         private bool hasCollided = false;
         private MeshCollider meshCollider;
+        private BoxCollider boxCollider;
         private Rigidbody rb;
         private AudioSource impactSound;
         private NavMeshObstacle navMeshObstacle;
@@ -556,6 +558,7 @@ namespace DerelictMoonPlugin
             rb = GetComponent<Rigidbody>();
             impactSound = GetComponent<AudioSource>();
             meshCollider = GetComponent<MeshCollider>();
+            boxCollider = GetComponent<BoxCollider>();
             navMeshObstacle = GetComponent<NavMeshObstacle>();
             smokeExplosion = GetComponent<ParticleSystem>();
             networkTransform = GetComponent<NetworkTransform>();
@@ -580,6 +583,12 @@ namespace DerelictMoonPlugin
             {
                 meshCollider.convex = true;
                 meshCollider.enabled = true;
+            }
+
+            if (boxCollider != null && IsServer)
+            {
+                boxCollider.enabled = true;
+                boxCollider.isTrigger = true;
             }
 
             StartCoroutine(WaitAndEnablePhysics(1f)); // Wait for sync before enabling physics
@@ -628,10 +637,25 @@ namespace DerelictMoonPlugin
             }
             else if (collision.gameObject.CompareTag("Player"))
             {
+                //Kill player
                 PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
                 if (playerController != null && velocity.magnitude > killVelocityThreshold)
                 {
                     NotifyPlayerKillClientRpc(playerController.playerClientId, velocity);
+                }
+            }
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other.gameObject.layer == LayerMask.NameToLayer("Enemies") && IsServer)
+            {
+                // Kill enemies
+                EnemyAI enemyAI = other.gameObject.GetComponent<EnemyAI>();
+                if (enemyAI != null)
+                {
+                    Debug.Log($"ShipmentCollisionHandler: Enemy crushed by falling debris");
+                    enemyAI.KillEnemyOnOwnerClient(false);
                 }
             }
         }
@@ -654,6 +678,7 @@ namespace DerelictMoonPlugin
         [ClientRpc]
         private void NotifyPlayerKillClientRpc(ulong clientId, Vector3 killVelocity)
         {
+            Debug.Log($"ShipmentCollisionHandler: Player #{clientId} was crushed by falling debris");
             PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
             if (localPlayer == null)
                 return;
@@ -686,6 +711,12 @@ namespace DerelictMoonPlugin
             if (meshCollider != null)
             {
                 meshCollider.convex = false;
+            }
+
+            if (boxCollider != null)
+            {
+                boxCollider.isTrigger = false;
+                boxCollider.enabled = false;
             }
 
             if (navMeshObstacle != null)
