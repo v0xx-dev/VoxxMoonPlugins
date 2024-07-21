@@ -14,6 +14,7 @@
           "BepInEx.Core": "5.4.21",
           "BepInEx.PluginInfoProps": "1.1.0",
           "UnityEngine.Modules": "2022.3.9",
+          "Unity.Netcode.Components": "0.0.0.0",
           "Unity.Netcode.Runtime": "0.0.0.0",
           "Unity.RenderPipelines.Core.Runtime": "0.0.0.0",
           "Unity.RenderPipelines.HighDefinition.Runtime": "0.0.0.0",
@@ -386,6 +387,14 @@
         }
       },
       "UnityEngine.Modules/2022.3.9": {},
+      "Unity.Netcode.Components/0.0.0.0": {
+        "runtime": {
+          "Unity.Netcode.Components.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "Unity.Netcode.Runtime/0.0.0.0": {
         "runtime": {
           "Unity.Netcode.Runtime.dll": {
@@ -653,14 +662,6 @@
       "Facepunch Transport for Netcode for GameObjects/0.0.0.0": {
         "runtime": {
           "Facepunch Transport for Netcode for GameObjects.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "Unity.Netcode.Components/0.0.0.0": {
-        "runtime": {
-          "Unity.Netcode.Components.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
           }
@@ -1043,6 +1044,11 @@
       "path": "unityengine.modules/2022.3.9",
       "hashPath": "unityengine.modules.2022.3.9.nupkg.sha512"
     },
+    "Unity.Netcode.Components/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
     "Unity.Netcode.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
@@ -1209,11 +1215,6 @@
       "sha512": ""
     },
     "Facepunch Transport for Netcode for GameObjects/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.Netcode.Components/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

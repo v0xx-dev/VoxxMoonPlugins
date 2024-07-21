@@ -4,10 +4,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 using UnityEngine.AI;
 using System;
 using UnityEngine.Rendering.HighDefinition;
+using System.Net.NetworkInformation;
+using static UnityEditor.Progress;
+using static UnityEngine.ParticleSystem.PlaybackState;
 
 namespace DerelictMoonPlugin
 {
@@ -71,7 +75,9 @@ namespace DerelictMoonPlugin
     {
         public List<float> deliveryTimes = new List<float>();
 
+        
         [SerializeField] private float maxStartTimeDelay = 120f;
+        [SerializeField] private GameObject shipmentsContainer;
         [SerializeField] private GameObject shipmentPositionsObject; // Assign in the inspector, contains positions where to drop shipments
         [SerializeField] private float maxRotationSpeed = 5f;
         [SerializeField] private float rotationSpeedChangeDuration = 10f;
@@ -94,31 +100,30 @@ namespace DerelictMoonPlugin
         private List<Transform> shipmentPositions = new List<Transform>();
         private float timer = 0f;
         private float timeDelay = 0f;
+        private int shipmentItemNum = 0; // Number of items in the shipment
         private bool isPortalOpenAnimationFinished = false;
         private bool isPortalCloseAnimationFinished = false;
         private bool isDelivering = false;
-        private bool shipmentSettledOnClient = false;
 
         private NetworkVariable<int> currentShipmentIndex = new NetworkVariable<int>(0);
+        private NetworkVariable<int> sharedSeed = new NetworkVariable<int>(StartOfRound.Instance.randomMapSeed);
+        private NetworkVariable<bool> shipmentSettledOnServer = new NetworkVariable<bool>(false);
 
+        public override void OnNetworkSpawn()
+        {
+            if (IsServer)
+            {
+                sharedSeed.Value = StartOfRound.Instance.randomMapSeed + 42;
+            }
+        }
 
         private void Start()
         {
             Debug.Log("RingPortalStormEvent: Start method called");
             animator = GetComponent<Animator>();
-            seededRandom = new System.Random(StartOfRound.Instance.randomMapSeed + 42);
 
-            timeDelay = (float)seededRandom.NextDouble() * maxStartTimeDelay;
-            for (int i = 0; i < deliveryTimes.Count; i++)
-            {
-                deliveryTimes[i] += timeDelay;
-            }
-
-            InitializeShipments();
             InitializeShipmentPositions();
-
-            // Shuffle the shipment positions and delivery times
-            ListShuffler.ShuffleInSync(shipmentPositions, shipments, seededRandom);
+            InitializeShipments();
 
             if (shipmentPositions.Count != shipments.Count)
             {
@@ -129,11 +134,21 @@ namespace DerelictMoonPlugin
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
             }
+
+            seededRandom = new System.Random(sharedSeed.Value);
+
+            timeDelay = (float)seededRandom.NextDouble() * maxStartTimeDelay;
+            for (int i = 0; i < deliveryTimes.Count; i++)
+            {
+                deliveryTimes[i] += timeDelay;
+            }
+
+            // Shuffle the shipment positions and delivery times
+            ListShuffler.ShuffleInSync(shipmentPositions, shipments, seededRandom);
         }
 
         private void Update()
         {
-
             if (currentShipmentIndex.Value >= deliveryTimes.Count)
             {
                 Debug.Log("RingPortalStormEvent: All shipments delivered, disabling station");
@@ -156,14 +171,20 @@ namespace DerelictMoonPlugin
         private void InitializeShipments()
         {
             Debug.Log("RingPortalStormEvent: Initializing shipments");
-
-            Transform shipmentsParent = transform.Find("Shipments");
-
-            foreach (Transform shipment in shipmentsParent)
+            if (shipmentsContainer == null)
             {
-                shipments.Add(shipment.gameObject);
-                shipment.gameObject.SetActive(false);
+                Debug.LogError("RingPortalStormEvent: Shipments container is not assigned!");
+                return;
             }
+
+            // Iterate through all children of the shipmentsContainer
+            foreach (Transform child in shipmentsContainer.transform)
+            {
+                shipments.Add(child.gameObject);
+                Debug.Log($"Added shipment: {child.name}");
+            }
+
+            Debug.Log($"Total shipments: {shipments.Count}");
         }
 
         private void InitializeShipmentPositions()
@@ -174,8 +195,6 @@ namespace DerelictMoonPlugin
                 Debug.LogError("RingPortalStormEvent: ShipmentPositions object is not assigned!");
                 return;
             }
-
-            shipmentPositions.Clear(); // Clear any existing positions
 
             // Iterate through all children of the shipmentPositionsObject
             foreach (Transform child in shipmentPositionsObject.transform)
@@ -266,7 +285,7 @@ namespace DerelictMoonPlugin
 
             Debug.Log("RingPortalStormEvent: Starting delivery sequence");
             isDelivering = true;
-            shipmentSettledOnClient = false;
+            shipmentSettledOnServer.Value = false;
 
             animator.SetBool("isPortalActive", false);
             animator.SetBool("isPortalOpenFinished", false);
@@ -308,8 +327,7 @@ namespace DerelictMoonPlugin
             yield return new WaitForSeconds(cooldownDuration);
 
             Debug.Log("RingPortalStormEvent: Spawning and dropping shipment");
-            SpawnAndDropShipmentClientRpc();
-            yield return new WaitUntil(() => shipmentSettledOnClient);
+            yield return StartCoroutine(SpawnAndDropShipmentServer());
 
             yield return new WaitForSeconds(cooldownDuration);
 
@@ -350,11 +368,11 @@ namespace DerelictMoonPlugin
                 float curveValue = movementCurve.Evaluate(t);
 
                 // Move
-                Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, curveValue);
+                Vector3 newPosition = Vector3.Slerp(startPosition, targetPosition, curveValue);
                 transform.position = newPosition;
 
                 // Rotate
-                Vector3 newRotation = Vector3.Lerp(startRotation, levelRotation, curveValue);
+                Vector3 newRotation = Vector3.Slerp(startRotation, levelRotation, curveValue);
                 transform.rotation = Quaternion.Euler(newRotation);
 
                 elapsedTime += Time.deltaTime;
@@ -426,7 +444,7 @@ namespace DerelictMoonPlugin
                 float t = elapsedTime / tiltChangeDuration;
 
                 // Gradually change rotation
-                Vector3 newRotation = Vector3.Lerp(startRotation, targetRotation, t);
+                Vector3 newRotation = Vector3.Slerp(startRotation, targetRotation, t);
                 transform.rotation = Quaternion.Euler(newRotation);
 
                 elapsedTime += Time.deltaTime;
@@ -434,47 +452,67 @@ namespace DerelictMoonPlugin
             }
         }
 
-        [ClientRpc]
-        private void SpawnAndDropShipmentClientRpc()
+        private IEnumerator SpawnAndDropShipmentServer()
         {
-            StartCoroutine(SpawnAndDropShipment());
-        }
-
-        [ClientRpc]
-        private void NotifyShipmentSettledClientRpc()
-        {
-            if (IsServer)
-            {
-                shipmentSettledOnClient = true;
-            }
-        }
-
-        private IEnumerator SpawnAndDropShipment()
-        {
-            List<GameObject> settledObjects = new List<GameObject>();
+            int settledObjectCount = 0;
             Action<GameObject> onObjectSettled = (obj) =>
             {
-                settledObjects.Add(obj);
+                settledObjectCount++;
             };
+
+            PrepareShipmentClientRpc();
 
             ShipmentCollisionHandler.OnObjectSettled += onObjectSettled;
 
-            Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex.Value % shipments.Count}");
-            GameObject shipment = shipments[currentShipmentIndex.Value % shipments.Count];
-            Transform[] childObjects = shipment.GetComponentsInChildren<Transform>(true);
-            shipment.SetActive(true);
-
             // Wait until all objects have settled
-            yield return new WaitUntil(() => settledObjects.Count == childObjects.Length - 1); // -1 to exclude the parent object itself
-
-            foreach (GameObject obj in settledObjects)
-            {
-                obj.transform.SetParent(shipmentPositionsObject.transform);
-            }
-
+            yield return new WaitUntil(() => settledObjectCount == shipmentItemNum - 1); // -1 to exclude the parent object itself
             Debug.Log("RingPortalStormEvent: Shipment dropped");
             ShipmentCollisionHandler.OnObjectSettled -= onObjectSettled; // Unsubscribe to prevent memory leaks
-            NotifyShipmentSettledClientRpc();
+            shipmentSettledOnServer.Value = true;
+        }
+
+        private IEnumerator SpawnAndDropShipmentClient()
+        {
+            // Wait until all objects have settled on server
+            yield return new WaitUntil(() => shipmentSettledOnServer.Value);
+
+            Debug.Log("RingPortalStormEvent: Shipment dropped");
+        }
+
+        [ClientRpc]
+        private void PrepareShipmentClientRpc()
+        {
+            Debug.Log($"RingPortalStormEvent: Spawning shipment {currentShipmentIndex.Value % shipments.Count}");
+            GameObject shipmentPrefab = shipments[currentShipmentIndex.Value % shipments.Count];
+            AudioSource teleportAudio = shipmentPrefab.GetComponent<AudioSource>();
+            AlignShipment(shipmentPrefab);
+            Transform[] shipmentItems = shipmentPrefab.GetComponentsInChildren<Transform>(true);
+            foreach (Transform item in shipmentItems)
+            {
+                ShipmentCollisionHandler shipmentCollisionHandler = item.gameObject.GetComponent<ShipmentCollisionHandler>();
+                if (shipmentCollisionHandler != null)
+                {
+                    shipmentCollisionHandler.enabled = true;
+                }
+            }
+            teleportAudio?.Play();
+            shipmentItemNum = shipmentItems.Length;
+        }
+
+        private void AlignShipment(GameObject shipment)
+        {
+            Transform shipmentTransform = shipment.transform;
+            // Get the shipment's local position and rotation relative to its parent.
+            Vector3 localPosition = shipmentsContainer.transform.InverseTransformPoint(shipmentTransform.position);
+            Quaternion localRotation = Quaternion.Inverse(shipmentsContainer.transform.rotation) * shipmentTransform.rotation;
+
+            // Calculate the desired world position and rotation based on the ring's transform.
+            Vector3 desiredWorldPosition = this.transform.TransformPoint(localPosition);
+            Quaternion desiredWorldRotation = this.transform.rotation * localRotation;
+
+            //Apply the calculated world position and rotation to the shipment.
+            shipmentTransform.position = desiredWorldPosition;
+            shipmentTransform.rotation = desiredWorldRotation;
         }
 
         public void OnPortalOpenAnimationFinished()
@@ -491,53 +529,138 @@ namespace DerelictMoonPlugin
         }
     }
 
-    public class ShipmentCollisionHandler : MonoBehaviour
+
+    public class ShipmentCollisionHandler : NetworkBehaviour
     {
         public static event Action<GameObject> OnObjectSettled;
-        private bool hasCollided = false;
-        private MeshCollider meshCollider;
-        private Rigidbody rb;
-        private KillPlayer killPlayerScript;
-        private AudioSource impactSound;
-        private NavMeshObstacle navMeshObstacle;
 
-        [SerializeField] private float settlementThreshold = 0.01f;
+        [SerializeField] private float settlementThreshold = 0.1f;
         [SerializeField] private float initialCheckDelay = 0.5f;
         [SerializeField] private float checkInterval = 0.1f;
         [SerializeField] private float maxTimeToSettle = 15f;
+        [SerializeField] private float killVelocityThreshold = 1f;
+
+        private bool hasCollided = false;
+        private MeshCollider meshCollider;
+        private Rigidbody rb;
+        private AudioSource impactSound;
+        private NavMeshObstacle navMeshObstacle;
+        private ParticleSystem smokeExplosion;
+        private NetworkTransform networkTransform;
+
+        private Vector3 previousPosition;
+        private Vector3 velocity;
 
         private void Start()
         {
             rb = GetComponent<Rigidbody>();
-            killPlayerScript = GetComponent<KillPlayer>();
             impactSound = GetComponent<AudioSource>();
             meshCollider = GetComponent<MeshCollider>();
             navMeshObstacle = GetComponent<NavMeshObstacle>();
+            smokeExplosion = GetComponent<ParticleSystem>();
+            networkTransform = GetComponent<NetworkTransform>();
+            MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
+
+            if (meshRenderer != null)
+            {
+                meshRenderer.enabled = true;
+            }
+
+            if (networkTransform != null)
+            {
+                networkTransform.enabled = true;
+            }
+
             if (navMeshObstacle != null)
             {
                 navMeshObstacle.carving = false;
             }
+
             if (meshCollider != null)
             {
                 meshCollider.convex = true;
+                meshCollider.enabled = true;
+            }
+
+            StartCoroutine(WaitAndEnablePhysics(1f)); // Wait for sync before enabling physics
+        }
+
+        private IEnumerator WaitAndEnablePhysics(float delay)
+        {
+            yield return new WaitForSeconds(delay); 
+
+            if (rb != null)
+            {
+                if (IsServer)
+                {
+                    rb.useGravity = true;
+                    rb.isKinematic = false;
+                }
+                else
+                {
+                    rb.useGravity = false;
+                    rb.isKinematic = true;
+                }
+
+                previousPosition = rb.position;
             }
         }
 
-        private void OnCollisionEnter(Collision collision)
+        private void FixedUpdate()
+        {
+            if (IsServer)
+            {
+                velocity = rb.velocity;
+            }
+            else
+            {
+                Vector3 currentPosition = rb.position;
+                velocity = (currentPosition - previousPosition) / Time.fixedDeltaTime;
+                previousPosition = currentPosition;
+            }
+        }
+
+        private void OnCollisionEnter(UnityEngine.Collision collision)
         {
             if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
             {
-                hasCollided = true;
-
-                // Play impact sound
-                impactSound?.Play();
-
-                // Play particle effect
-                ParticleSystem smokeExplosion = GetComponent<ParticleSystem>();
-                smokeExplosion?.Play();
-
-                StartCoroutine(CheckIfSettled());
+                OnCollisionEnterServerRpc();
             }
+            else if (collision.gameObject.CompareTag("Player"))
+            {
+                PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
+                if (playerController != null && velocity.magnitude > killVelocityThreshold)
+                {
+                    NotifyPlayerKillClientRpc(playerController.playerClientId, velocity);
+                }
+            }
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void OnCollisionEnterServerRpc()
+        {
+            hasCollided = true;
+            PlayEffectsClientRpc();
+            StartCoroutine(CheckIfSettled());
+        }
+
+        [ClientRpc]
+        private void PlayEffectsClientRpc()
+        {
+            impactSound?.Play();
+            smokeExplosion?.Play();
+        }
+
+        [ClientRpc]
+        private void NotifyPlayerKillClientRpc(ulong clientId, Vector3 killVelocity)
+        {
+            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
+            if (localPlayer == null)
+                return;
+            
+            if (localPlayer.playerClientId == clientId)
+                localPlayer.KillPlayer(bodyVelocity: killVelocity, spawnBody: true,
+                                       causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 0);
         }
 
         private IEnumerator CheckIfSettled()
@@ -545,72 +668,43 @@ namespace DerelictMoonPlugin
             float elapsedTime = initialCheckDelay;
             yield return new WaitForSeconds(initialCheckDelay);
 
-            while (rb.velocity.magnitude > settlementThreshold && elapsedTime < maxTimeToSettle)
+            while (velocity.magnitude > settlementThreshold && elapsedTime < maxTimeToSettle)
             {
                 yield return new WaitForSeconds(checkInterval);
                 elapsedTime += checkInterval;
             }
 
-            // Object has settled
+            SetObjectSettledClientRpc();
+        }
+
+        [ClientRpc]
+        private void SetObjectSettledClientRpc()
+        {
             rb.useGravity = false;
             rb.isKinematic = true;
-            //rb.velocity = Vector3.zero;
 
-            // Disable kill script
-            if (killPlayerScript != null)
-            {
-                killPlayerScript.enabled = false;
-            }
-
-            //Switch to a proper mesh collider
             if (meshCollider != null)
             {
                 meshCollider.convex = false;
             }
 
-            //Change NavMesh
             if (navMeshObstacle != null)
             {
                 navMeshObstacle.carving = true;
             }
 
-            OnObjectSettled?.Invoke(gameObject);
+            if (networkTransform != null)
+            {
+                networkTransform.enabled = false;
+            }
 
-            // Disable this script
+            if (IsServer)
+            {
+                OnObjectSettled?.Invoke(gameObject);
+            }
+
             this.enabled = false;
         }
-    }
-
-    public class KillPlayer : MonoBehaviour
-    {
-        [SerializeField] private float killVelocityThreshold = 0f;
-        private CauseOfDeath causeOfDeath = CauseOfDeath.Crushing;
-        private int deathAnimation = 0;
-
-        private Rigidbody rb;
-
-        private void Start()
-        {
-            rb = GetComponent<Rigidbody>();
-        }
-
-        private void OnCollisionEnter(Collision collision)
-        {
-            if (collision.gameObject.CompareTag("Player"))
-            {
-                PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
-
-                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
-                {
-                    if (rb.velocity.magnitude > killVelocityThreshold)
-                    {
-                        playerController.KillPlayer(bodyVelocity: rb.velocity, spawnBody: true,
-                                                    causeOfDeath: causeOfDeath, deathAnimation: deathAnimation);
-                    }
-                }
-            }
-        }
-
     }
 
     internal class ToxicFumes : MonoBehaviour
