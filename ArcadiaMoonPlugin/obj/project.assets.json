@@ -77,6 +77,77 @@
           }
         }
       },
+      "LethalCompany.GameLibs.Steam/56.0.1-ngd.0": {
+        "type": "package",
+        "dependencies": {
+          "Newtonsoft.JSON": "13.0.3",
+          "UnityEngine.Modules": "2022.3.9"
+        },
+        "compile": {
+          "ref/netstandard2.1/AmazingAssets.TerrainToMesh.dll": {},
+          "ref/netstandard2.1/Assembly-CSharp-firstpass.dll": {},
+          "ref/netstandard2.1/Assembly-CSharp.dll": {},
+          "ref/netstandard2.1/ClientNetworkTransform.dll": {},
+          "ref/netstandard2.1/DissonanceVoip.dll": {},
+          "ref/netstandard2.1/Facepunch Transport for Netcode for GameObjects.dll": {},
+          "ref/netstandard2.1/Facepunch.Steamworks.Win64.dll": {},
+          "ref/netstandard2.1/Unity.AI.Navigation.dll": {},
+          "ref/netstandard2.1/Unity.Animation.Rigging.DocCodeExamples.dll": {},
+          "ref/netstandard2.1/Unity.Animation.Rigging.dll": {},
+          "ref/netstandard2.1/Unity.Burst.Unsafe.dll": {},
+          "ref/netstandard2.1/Unity.Burst.dll": {},
+          "ref/netstandard2.1/Unity.Collections.LowLevel.ILSupport.dll": {},
+          "ref/netstandard2.1/Unity.Collections.dll": {},
+          "ref/netstandard2.1/Unity.InputSystem.ForUI.dll": {},
+          "ref/netstandard2.1/Unity.InputSystem.dll": {},
+          "ref/netstandard2.1/Unity.Jobs.dll": {},
+          "ref/netstandard2.1/Unity.Mathematics.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.Common.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.MetricTypes.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStats.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Component.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Configuration.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Implementation.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsReporting.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetworkProfiler.Runtime.dll": {},
+          "ref/netstandard2.1/Unity.Multiplayer.Tools.NetworkSolutionInterface.dll": {},
+          "ref/netstandard2.1/Unity.Netcode.Components.dll": {},
+          "ref/netstandard2.1/Unity.Netcode.Runtime.dll": {},
+          "ref/netstandard2.1/Unity.Networking.Transport.dll": {},
+          "ref/netstandard2.1/Unity.ProBuilder.Csg.dll": {},
+          "ref/netstandard2.1/Unity.ProBuilder.KdTree.dll": {},
+          "ref/netstandard2.1/Unity.ProBuilder.Poly2Tri.dll": {},
+          "ref/netstandard2.1/Unity.ProBuilder.Stl.dll": {},
+          "ref/netstandard2.1/Unity.ProBuilder.dll": {},
+          "ref/netstandard2.1/Unity.Profiling.Core.dll": {},
+          "ref/netstandard2.1/Unity.RenderPipelines.Core.Runtime.dll": {},
+          "ref/netstandard2.1/Unity.RenderPipelines.Core.ShaderLibrary.dll": {},
+          "ref/netstandard2.1/Unity.RenderPipelines.HighDefinition.Config.Runtime.dll": {},
+          "ref/netstandard2.1/Unity.RenderPipelines.HighDefinition.Runtime.dll": {},
+          "ref/netstandard2.1/Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll": {},
+          "ref/netstandard2.1/Unity.Services.Authentication.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Analytics.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Configuration.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Device.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Environments.Internal.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Environments.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Internal.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Networking.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Registration.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Scheduler.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Telemetry.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.Threading.dll": {},
+          "ref/netstandard2.1/Unity.Services.Core.dll": {},
+          "ref/netstandard2.1/Unity.Services.QoS.dll": {},
+          "ref/netstandard2.1/Unity.Services.Relay.dll": {},
+          "ref/netstandard2.1/Unity.TextMeshPro.dll": {},
+          "ref/netstandard2.1/Unity.Timeline.dll": {},
+          "ref/netstandard2.1/Unity.VisualEffectGraph.Runtime.dll": {},
+          "ref/netstandard2.1/UnityEngine.ARModule.dll": {},
+          "ref/netstandard2.1/UnityEngine.NVIDIAModule.dll": {},
+          "ref/netstandard2.1/UnityEngine.UI.dll": {}
+        }
+      },
       "Microsoft.NETCore.Platforms/1.1.0": {
         "type": "package",
         "compile": {
@@ -167,6 +238,19 @@
         },
         "runtime": {
           "lib/netstandard2.0/MonoMod.Utils.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.3": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/Newtonsoft.Json.dll": {
             "related": ".xml"
           }
         }
@@ -748,6 +832,79 @@
         "logo_mini.png"
       ]
     },
+    "LethalCompany.GameLibs.Steam/56.0.1-ngd.0": {
+      "sha512": "wzePk10ngsSmQTjd5CnYykD8KTTNZoGXN8Npr00VgmhRm1gisG0ZcJbdvXRaeREtNv8pLbLkThk+He4xXOm6YQ==",
+      "type": "package",
+      "path": "lethalcompany.gamelibs.steam/56.0.1-ngd.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lethalcompany.gamelibs.steam.56.0.1-ngd.0.nupkg.sha512",
+        "lethalcompany.gamelibs.steam.nuspec",
+        "ref/netstandard2.1/AmazingAssets.TerrainToMesh.dll",
+        "ref/netstandard2.1/Assembly-CSharp-firstpass.dll",
+        "ref/netstandard2.1/Assembly-CSharp.dll",
+        "ref/netstandard2.1/ClientNetworkTransform.dll",
+        "ref/netstandard2.1/DissonanceVoip.dll",
+        "ref/netstandard2.1/Facepunch Transport for Netcode for GameObjects.dll",
+        "ref/netstandard2.1/Facepunch.Steamworks.Win64.dll",
+        "ref/netstandard2.1/Unity.AI.Navigation.dll",
+        "ref/netstandard2.1/Unity.Animation.Rigging.DocCodeExamples.dll",
+        "ref/netstandard2.1/Unity.Animation.Rigging.dll",
+        "ref/netstandard2.1/Unity.Burst.Unsafe.dll",
+        "ref/netstandard2.1/Unity.Burst.dll",
+        "ref/netstandard2.1/Unity.Collections.LowLevel.ILSupport.dll",
+        "ref/netstandard2.1/Unity.Collections.dll",
+        "ref/netstandard2.1/Unity.InputSystem.ForUI.dll",
+        "ref/netstandard2.1/Unity.InputSystem.dll",
+        "ref/netstandard2.1/Unity.Jobs.dll",
+        "ref/netstandard2.1/Unity.Mathematics.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.Common.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.MetricTypes.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStats.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Component.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Configuration.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsMonitor.Implementation.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetStatsReporting.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetworkProfiler.Runtime.dll",
+        "ref/netstandard2.1/Unity.Multiplayer.Tools.NetworkSolutionInterface.dll",
+        "ref/netstandard2.1/Unity.Netcode.Components.dll",
+        "ref/netstandard2.1/Unity.Netcode.Runtime.dll",
+        "ref/netstandard2.1/Unity.Networking.Transport.dll",
+        "ref/netstandard2.1/Unity.ProBuilder.Csg.dll",
+        "ref/netstandard2.1/Unity.ProBuilder.KdTree.dll",
+        "ref/netstandard2.1/Unity.ProBuilder.Poly2Tri.dll",
+        "ref/netstandard2.1/Unity.ProBuilder.Stl.dll",
+        "ref/netstandard2.1/Unity.ProBuilder.dll",
+        "ref/netstandard2.1/Unity.Profiling.Core.dll",
+        "ref/netstandard2.1/Unity.RenderPipelines.Core.Runtime.dll",
+        "ref/netstandard2.1/Unity.RenderPipelines.Core.ShaderLibrary.dll",
+        "ref/netstandard2.1/Unity.RenderPipelines.HighDefinition.Config.Runtime.dll",
+        "ref/netstandard2.1/Unity.RenderPipelines.HighDefinition.Runtime.dll",
+        "ref/netstandard2.1/Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll",
+        "ref/netstandard2.1/Unity.Services.Authentication.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Analytics.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Configuration.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Device.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Environments.Internal.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Environments.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Internal.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Networking.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Registration.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Scheduler.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Telemetry.dll",
+        "ref/netstandard2.1/Unity.Services.Core.Threading.dll",
+        "ref/netstandard2.1/Unity.Services.Core.dll",
+        "ref/netstandard2.1/Unity.Services.QoS.dll",
+        "ref/netstandard2.1/Unity.Services.Relay.dll",
+        "ref/netstandard2.1/Unity.TextMeshPro.dll",
+        "ref/netstandard2.1/Unity.Timeline.dll",
+        "ref/netstandard2.1/Unity.VisualEffectGraph.Runtime.dll",
+        "ref/netstandard2.1/UnityEngine.ARModule.dll",
+        "ref/netstandard2.1/UnityEngine.NVIDIAModule.dll",
+        "ref/netstandard2.1/UnityEngine.UI.dll"
+      ]
+    },
     "Microsoft.NETCore.Platforms/1.1.0": {
       "sha512": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A==",
       "type": "package",
@@ -841,6 +998,36 @@
         "lib/netstandard2.0/MonoMod.Utils.xml",
         "monomod.utils.21.12.13.1.nupkg.sha512",
         "monomod.utils.nuspec"
+      ]
+    },
+    "Newtonsoft.Json/13.0.3": {
+      "sha512": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ==",
+      "type": "package",
+      "path": "newtonsoft.json/13.0.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "README.md",
+        "lib/net20/Newtonsoft.Json.dll",
+        "lib/net20/Newtonsoft.Json.xml",
+        "lib/net35/Newtonsoft.Json.dll",
+        "lib/net35/Newtonsoft.Json.xml",
+        "lib/net40/Newtonsoft.Json.dll",
+        "lib/net40/Newtonsoft.Json.xml",
+        "lib/net45/Newtonsoft.Json.dll",
+        "lib/net45/Newtonsoft.Json.xml",
+        "lib/net6.0/Newtonsoft.Json.dll",
+        "lib/net6.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.0/Newtonsoft.Json.dll",
+        "lib/netstandard1.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.3/Newtonsoft.Json.dll",
+        "lib/netstandard1.3/Newtonsoft.Json.xml",
+        "lib/netstandard2.0/Newtonsoft.Json.dll",
+        "lib/netstandard2.0/Newtonsoft.Json.xml",
+        "newtonsoft.json.13.0.3.nupkg.sha512",
+        "newtonsoft.json.nuspec",
+        "packageIcon.png"
       ]
     },
     "System.Collections/4.3.0": {
@@ -2730,6 +2917,7 @@
       "BepInEx.AssemblyPublicizer.MSBuild >= 0.4.2",
       "BepInEx.Core >= 5.*",
       "BepInEx.PluginInfoProps >= 1.*",
+      "LethalCompany.GameLibs.Steam >= 56.0.1-ngd.0",
       "UnityEngine.Modules >= 2022.3.9"
     ]
   },
@@ -2796,6 +2984,10 @@
           "BepInEx.PluginInfoProps": {
             "target": "Package",
             "version": "[1.*, )"
+          },
+          "LethalCompany.GameLibs.Steam": {
+            "target": "Package",
+            "version": "[56.0.1-ngd.0, )"
           },
           "UnityEngine.Modules": {
             "include": "Compile",

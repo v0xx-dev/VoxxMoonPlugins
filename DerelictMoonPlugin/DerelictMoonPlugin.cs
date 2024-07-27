@@ -9,10 +9,6 @@ using UnityEngine;
 using UnityEngine.AI;
 using System;
 using UnityEngine.Rendering.HighDefinition;
-using System.Net.NetworkInformation;
-using static UnityEditor.Progress;
-using static UnityEngine.ParticleSystem.PlaybackState;
-using UnityEditor.PackageManager;
 
 namespace DerelictMoonPlugin
 {
@@ -550,9 +546,6 @@ namespace DerelictMoonPlugin
         private ParticleSystem smokeExplosion;
         private NetworkTransform networkTransform;
 
-        private Vector3 previousPosition;
-        private Vector3 velocity;
-
         private void Start()
         {
             rb = GetComponent<Rigidbody>();
@@ -610,26 +603,14 @@ namespace DerelictMoonPlugin
                     rb.useGravity = false;
                     rb.isKinematic = true;
                 }
-
-                previousPosition = rb.position;
-            }
-        }
-
-        private void FixedUpdate()
-        {
-            if (IsServer)
-            {
-                velocity = rb.velocity;
             }
             else
             {
-                Vector3 currentPosition = rb.position;
-                velocity = (currentPosition - previousPosition) / Time.fixedDeltaTime;
-                previousPosition = currentPosition;
+                Debug.LogError("ShipmentCollisionHandler: Rigidbody is not assigned!");
             }
         }
 
-        private void OnCollisionEnter(UnityEngine.Collision collision)
+        private void OnCollisionEnter(Collision collision)
         {
             if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
             {
@@ -639,9 +620,9 @@ namespace DerelictMoonPlugin
             {
                 //Kill player
                 PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
-                if (playerController != null && velocity.magnitude > killVelocityThreshold)
+                if (playerController != null && rb.velocity.magnitude > killVelocityThreshold)
                 {
-                    NotifyPlayerKillClientRpc(playerController.playerClientId, velocity);
+                    NotifyPlayerKillClientRpc(playerController.playerClientId, rb.velocity);
                 }
             }
         }
@@ -693,13 +674,22 @@ namespace DerelictMoonPlugin
             float elapsedTime = initialCheckDelay;
             yield return new WaitForSeconds(initialCheckDelay);
 
-            while (velocity.magnitude > settlementThreshold && elapsedTime < maxTimeToSettle)
+            while (rb.velocity.magnitude > settlementThreshold && elapsedTime < maxTimeToSettle)
             {
                 yield return new WaitForSeconds(checkInterval);
                 elapsedTime += checkInterval;
             }
 
+            OnObjectSettled?.Invoke(gameObject);
+
+            yield return new WaitForSeconds(.5f); // Wait for a bit to sync
+
             SetObjectSettledClientRpc();
+
+            yield return new WaitForSeconds(.5f); // Wait for a bit to sync
+
+            (Vector3 pos, Quaternion rot) = (rb.position, rb.rotation);
+            SyncSettledObjectClientRpc(pos, rot);
         }
 
         [ClientRpc]
@@ -723,18 +713,29 @@ namespace DerelictMoonPlugin
             {
                 navMeshObstacle.carving = true;
             }
+        }
 
-            if (networkTransform != null)
+        [ClientRpc]
+        private void SyncSettledObjectClientRpc(Vector3 restingPosition, Quaternion restingRotation)
+        {
+            if (!IsServer)
+                StartCoroutine(SyncSettledObjectCoroutine(restingPosition, restingRotation));
+        }
+
+        private IEnumerator SyncSettledObjectCoroutine(Vector3 restingPosition, Quaternion restingRotation)
+        {
+            float interpSyncTime = 3f;
+            float currSyncTime = 0f;
+            Vector3 startPos = rb.position;
+            Quaternion startRot = rb.rotation;
+
+            while (currSyncTime < interpSyncTime)
             {
-                networkTransform.enabled = false;
+                rb.position = Vector3.Lerp(startPos, restingPosition, currSyncTime / interpSyncTime);
+                rb.rotation = Quaternion.Slerp(startRot, restingRotation, currSyncTime / interpSyncTime);
+                currSyncTime += 0.02f;
+                yield return new WaitForSeconds(0.02f);
             }
-
-            if (IsServer)
-            {
-                OnObjectSettled?.Invoke(gameObject);
-            }
-
-            this.enabled = false;
         }
     }
 

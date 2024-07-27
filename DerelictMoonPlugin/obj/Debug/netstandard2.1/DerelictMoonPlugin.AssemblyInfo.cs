@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("A plugin for the LC Derelict Moon mod")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1b24408f75f5256e693d6f6ae6c1482c642b9627")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+afe06c6cb4f71b925ddb383788d0e70f05964b84")]
 [assembly: System.Reflection.AssemblyProductAttribute("DerelictMoonPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DerelictMoonPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -5,7 +5,7 @@ VisualStudioVersion = 17.10.34928.147
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ArcadiaMoonPlugin", "ArcadiaMoonPlugin\ArcadiaMoonPlugin.csproj", "{2DC60A9D-F44B-4B06-8A37-9B05D6D2CAC8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DerelictMoonPlugin", "DerelictMoonPlugin\DerelictMoonPlugin.csproj", "{ED737E51-4C92-4DC0-82F5-0DD38E53119D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DerelictMoonPlugin", "DerelictMoonPlugin\DerelictMoonPlugin.csproj", "{ED737E51-4C92-4DC0-82F5-0DD38E53119D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
