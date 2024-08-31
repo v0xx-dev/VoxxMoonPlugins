@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <AssemblyName>ArcadiaMoonPlugin</AssemblyName>
         <Description>A plugin for the LC Arcadia Moon mod</Description>
-        <Version>1.3.0</Version>
+        <Version>1.4.0</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
@@ -27,7 +27,7 @@
         </PackageReference>
         <PackageReference Include="BepInEx.Core" Version="5.*" />
         <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*" />
-        <PackageReference Include="LethalCompany.GameLibs.Steam" Version="56.0.1-ngd.0" />
+        <PackageReference Include="LethalCompany.GameLibs.Steam" Version="62.0.1-ngd.0" />
         <PackageReference Include="UnityEngine.Modules" Version="2022.3.9" IncludeAssets="compile" />
 		<Reference Include="UnityEditor" HintPath="C:\Program Files\Unity 2022.3.9f1\Editor\Data\Managed\UnityEditor.dll" />
 		<Reference Include="UnityEngine" HintPath="C:\Program Files\Unity 2022.3.9f1\Editor\Data\Managed\UnityEngine.dll" />

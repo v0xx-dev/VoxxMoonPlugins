@@ -5,7 +5,7 @@
   },
   "projects": {
     "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj": {
-      "version": "1.3.0",
+      "version": "1.4.0",
       "restore": {
         "projectUniqueName": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\ArcadiaMoonPlugin\\ArcadiaMoonPlugin.csproj",
         "projectName": "ArcadiaMoonPlugin",
@@ -14,6 +14,7 @@
         "outputPath": "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\ArcadiaMoonPlugin\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
+          "C:\\Users\\ispar\\Documents\\LC_Modding\\VoxxMapPlugins\\ArcadiaMoonPlugin\\NuGet.Config",
           "C:\\Users\\ispar\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -67,7 +68,7 @@
             },
             "LethalCompany.GameLibs.Steam": {
               "target": "Package",
-              "version": "[56.0.1-ngd.0, )"
+              "version": "[62.0.1-ngd.0, )"
             },
             "UnityEngine.Modules": {
               "include": "Compile",

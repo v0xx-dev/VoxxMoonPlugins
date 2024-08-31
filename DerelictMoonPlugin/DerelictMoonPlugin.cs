@@ -3,6 +3,7 @@ using GameNetcodeStuff;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Linq;
 using Unity.Netcode;
 using Unity.Netcode.Components;
 using UnityEngine;
@@ -612,17 +613,20 @@ namespace DerelictMoonPlugin
 
         private void OnCollisionEnter(Collision collision)
         {
+            if (!IsServer)
+                return;
+
             if (!hasCollided && (collision.gameObject.CompareTag("Grass") || collision.gameObject.CompareTag("Aluminum")))
             {
-                OnCollisionEnterServerRpc();
+                OnCollisionEnterEffect();
             }
             else if (collision.gameObject.CompareTag("Player"))
             {
-                //Kill player
+                //Kill a specific player
                 PlayerControllerB playerController = collision.gameObject.GetComponent<PlayerControllerB>();
                 if (playerController != null && rb.velocity.magnitude > killVelocityThreshold)
                 {
-                    NotifyPlayerKillClientRpc(playerController.playerClientId, rb.velocity);
+                    NotifyPlayerKillClientRpc(new NetworkBehaviourReference(playerController), rb.velocity);
                 }
             }
         }
@@ -641,8 +645,7 @@ namespace DerelictMoonPlugin
             }
         }
 
-        [ServerRpc(RequireOwnership = false)]
-        private void OnCollisionEnterServerRpc()
+        private void OnCollisionEnterEffect()
         {
             hasCollided = true;
             PlayEffectsClientRpc();
@@ -657,16 +660,20 @@ namespace DerelictMoonPlugin
         }
 
         [ClientRpc]
-        private void NotifyPlayerKillClientRpc(ulong clientId, Vector3 killVelocity)
+        private void NotifyPlayerKillClientRpc(NetworkBehaviourReference playerRef, Vector3 killVelocity)
         {
-            Debug.Log($"ShipmentCollisionHandler: Player #{clientId} was crushed by falling debris");
-            PlayerControllerB localPlayer = GameNetworkManager.Instance.localPlayerController;
-            if (localPlayer == null)
+            if (StartOfRound.Instance.shipIsLeaving)
                 return;
-            
-            if (localPlayer.playerClientId == clientId)
-                localPlayer.KillPlayer(bodyVelocity: killVelocity, spawnBody: true,
-                                       causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 0);
+            if (playerRef.TryGet(out PlayerControllerB player))
+            {
+                Debug.Log($"ShipmentCollisionHandler: Player {player.actualClientId} was crushed by falling debris");
+                
+                if (player == GameNetworkManager.Instance.localPlayerController)
+                {
+                    player.KillPlayer(bodyVelocity: killVelocity, spawnBody: true,
+                                    causeOfDeath: CauseOfDeath.Crushing, deathAnimation: 0);
+                }
+            }
         }
 
         private IEnumerator CheckIfSettled()
@@ -746,10 +753,11 @@ namespace DerelictMoonPlugin
         [SerializeField] protected int damageAmount = 5;
 
         protected float damageTimer = 0f;
+        protected bool isPoisoningLocalPlayer = false;
 
-        protected virtual void ApplyDamage(PlayerControllerB playerController)
+        protected virtual void OnTriggerStay(Collider other)
         {
-            playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+            ApplyToxicEffect(other);
         }
 
         internal void ApplyToxicEffect(Collider other)
@@ -760,6 +768,13 @@ namespace DerelictMoonPlugin
 
                 if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController && !playerController.isInHangarShipRoom)
                 {
+                    if (playerController.beamUpParticle.isPlaying || playerController.isPlayerDead)
+                    {
+                        isPoisoningLocalPlayer = false;
+                        return;
+                    }
+
+                    isPoisoningLocalPlayer = true;
                     damageTimer += Time.deltaTime;
                     playerController.drunknessInertia = Mathf.Clamp(playerController.drunknessInertia + Time.deltaTime / drunknessPower * playerController.drunknessSpeed, 0.1f, 10f);
                     playerController.increasingDrunknessThisFrame = true;
@@ -771,10 +786,32 @@ namespace DerelictMoonPlugin
                 }
             }
         }
-
-        protected virtual void OnTriggerStay(Collider other)
+        
+        protected virtual void ApplyDamage(PlayerControllerB playerController)
         {
-            ApplyToxicEffect(other);
+            playerController.DamagePlayer(damageAmount, true, true, CauseOfDeath.Suffocation, 0, false, default(Vector3));
+        }
+
+        internal void OnTriggerExit(Collider other)
+        {
+            if (other.CompareTag("Player"))
+            {
+                PlayerControllerB playerController = other.gameObject.GetComponent<PlayerControllerB>();
+
+                if (playerController != null && playerController == GameNetworkManager.Instance.localPlayerController)
+                {
+                    isPoisoningLocalPlayer = false;
+                }
+            }
+        }
+
+        protected virtual void Update()
+        {
+            if (isPoisoningLocalPlayer || damageTimer <= 0)
+            {
+                return;
+            }
+            damageTimer = Mathf.Clamp(damageTimer - Time.deltaTime, 0, damageTime);
         }
     }
 
@@ -823,7 +860,7 @@ namespace DerelictMoonPlugin
             isToxified = false;
         }
 
-        private void Update()
+        protected override void Update()
         {
             if (TimeOfDay.Instance.currentLevelWeather == LevelWeatherType.Foggy && !isToxified)
             {
@@ -833,11 +870,134 @@ namespace DerelictMoonPlugin
             {
                 PurifyFog();
             }
+
+            base.Update();
         }
 
         private void OnDestroy()
         {
             PurifyFog();
+        }
+    }
+
+    internal class InteriorHazardSpawner : MonoBehaviour
+    {
+        public GameObject hazardPrefab; // Assign in the inspector
+        public int minNumberOfHazards = 10;
+        public int maxNumberOfHazards = 20;
+        public float spawnRadius = 20f;
+        public float minDistanceBetweenHazards = 5f;
+        public float minDistanceFromEntrances = 15f;
+
+        private int numberOfHazards;
+        private List<Vector3> spawnedPositions;
+        private Vector3[] randomMapObjectsPositions;
+        private Vector3[] entrancePositions;
+        private System.Random random;
+        private int maxAttempts;
+
+        void Start()
+        {
+            if (hazardPrefab == null)
+            {
+                Debug.LogError("InteriorHazardSpawner: Hazard prefab is not assigned!");
+                return;
+            }
+
+            StartOfRound.Instance.StartNewRoundEvent.AddListener(OnNewRound);
+        }
+
+        private void OnNewRound()
+        {
+            InitializeSpawner();
+            SpawnHazards();
+            StartOfRound.Instance.StartNewRoundEvent.RemoveListener(OnNewRound);
+            this.enabled = false;
+        }
+        
+        private void InitializeSpawner()
+        {
+            random = new System.Random(StartOfRound.Instance.randomMapSeed + 422);
+
+            numberOfHazards = random.Next(minNumberOfHazards, maxNumberOfHazards + 1);
+            spawnedPositions = new List<Vector3>(numberOfHazards);
+            maxAttempts = numberOfHazards * 3;
+
+            // Cache entrance positions and map objects
+            EntranceTeleport[] interiorEntrances = FindObjectsOfType<EntranceTeleport>().Where(entrance => !entrance.isEntranceToBuilding).ToArray();
+            SpawnSyncedObject[] randomMapObjects = FindObjectsOfType<SpawnSyncedObject>();
+            entrancePositions = new Vector3[interiorEntrances.Length];
+            for (int i = 0; i < interiorEntrances.Length; i++)
+            {
+                entrancePositions[i] = interiorEntrances[i].transform.position;
+            }
+
+            randomMapObjectsPositions = new Vector3[randomMapObjects.Length];
+            for (int i = 0; i < randomMapObjects.Length; i++)
+            {
+                randomMapObjectsPositions[i] = randomMapObjects[i].transform.position;
+            }
+        }
+
+        private void SpawnHazards()
+        {
+            NavMeshHit navHit = new NavMeshHit();
+
+            for (int i = 0; i < maxAttempts && spawnedPositions.Count < numberOfHazards; i++)
+            {
+                // Randomly select an object to spawn around
+                int randomObjectIndex = random.Next(randomMapObjectsPositions.Length);
+                Vector3 objectPosition = randomMapObjectsPositions[randomObjectIndex];
+
+                Vector3 potentialPosition = GetValidSpawnPosition(objectPosition, ref navHit);
+                if (potentialPosition != Vector3.zero)
+                {
+                    GameObject spawnedHazard = Instantiate(hazardPrefab, potentialPosition, Quaternion.identity);
+                    spawnedHazard.transform.SetParent(transform);
+                    spawnedPositions.Add(potentialPosition);
+                }
+            }
+
+            Debug.Log($"InteriorHazardSpawner: Spawned {spawnedPositions.Count} hazards out of {numberOfHazards}");
+        }
+
+        private Vector3 GetValidSpawnPosition(Vector3 objectPosition, ref NavMeshHit navHit)
+        {
+            Vector3 potentialPosition = RoundManager.Instance.GetRandomNavMeshPositionInBoxPredictable(
+                objectPosition, spawnRadius, navHit, random, NavMesh.AllAreas);
+
+            if (IsPositionValid(potentialPosition))
+            {
+                return potentialPosition;
+            }
+
+            return Vector3.zero;
+        }
+
+        private bool IsPositionValid(Vector3 position)
+        {
+            float sqrMinDistanceBetweenHazards = minDistanceBetweenHazards * minDistanceBetweenHazards;
+            float sqrMinDistanceFromEntrances = minDistanceFromEntrances * minDistanceFromEntrances;
+
+            // Check distance from other hazards
+            for (int i = 0; i < spawnedPositions.Count; i++)
+            {
+                if ((position - spawnedPositions[i]).sqrMagnitude < sqrMinDistanceBetweenHazards)
+                {
+                    return false;
+                }
+            }
+
+            // Check distance from EntranceTeleport objects
+            for (int i = 0; i < entrancePositions.Length; i++)
+            {
+                if ((position - entrancePositions[i]).sqrMagnitude < sqrMinDistanceFromEntrances)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

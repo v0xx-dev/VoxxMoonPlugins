@@ -67,3 +67,9 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+/.vscode
+/ArcadiaMoonplugin/obj
+/ArcadiaMoonplugin/bin
+/DerelictMoonplugin/obj
+/DerelictMoonplugin/bin

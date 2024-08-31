@@ -55,11 +55,13 @@ namespace ArcadiaMoonPlugin
 
         }
 
-        private void Update()
+        private void FixedUpdate()
         {
             if (timeSyncAnimator != null && TimeOfDay.Instance.timeHasStarted)
             {
                 timeSyncAnimator.SetFloat("timeOfDay", Mathf.Clamp(TimeOfDay.Instance.normalizedTimeOfDay, 0f, 0.99f));
+                if (TimeOfDay.Instance.currentLevelWeather == LevelWeatherType.DustClouds)
+                    timeSyncAnimator.SetBool("dusty", true);
             }
         }
     }
