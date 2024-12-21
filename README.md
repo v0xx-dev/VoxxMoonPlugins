@@ -1,2 +1,2 @@
-# Arcadia Plugins
-A helper mod to add some custom functionality to my maps
+# Voxx Moon Plugins
+Helper mods to add some custom functionality to my maps

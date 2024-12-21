@@ -73,3 +73,6 @@ crashlytics-build.properties
 /ArcadiaMoonplugin/bin
 /DerelictMoonplugin/obj
 /DerelictMoonplugin/bin
+/ArcadiaMoonplugin/Properties
+/DerelictMoonplugin/properties
+/.github
